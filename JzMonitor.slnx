@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/JzMonitor/JzMonitor.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/JzMonitor.Tests/JzMonitor.Tests.csproj" />
+  </Folder>
+</Solution>

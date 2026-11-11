@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git diff *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet run --project src/JzMonitor*)",
+      "Bash(tools/re/unpack.sh *)",
+      "Bash(tools/re/da.sh *)",
+      "Read(//d/projects/JZ Monitor/Chaser logs/**)",
+      "Read(//d/projects/JZ Monitor/CarTester.ini)"
+    ],
+    "deny": [
+      "Edit(//d/projects/JZ Monitor/Chaser logs/**)",
+      "Write(//d/projects/JZ Monitor/Chaser logs/**)",
+      "Edit(//d/projects/JZ Monitor/CarTester.exe)",
+      "Edit(//d/projects/JZ Monitor/Viewer.dll)",
+      "Edit(//d/projects/JZ Monitor/CarTester.ini)",
+      "Write(//d/projects/JZ Monitor/CarTester.ini)"
+    ]
+  }
+}

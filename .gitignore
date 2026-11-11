@@ -426,3 +426,11 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+## JZ Monitor
+.claude/settings.local.json
+
+# Справжні записи з авто — приватні дані, не комітимо
+*.ctr
+*.edges.csv
+JzMonitor.settings.json
