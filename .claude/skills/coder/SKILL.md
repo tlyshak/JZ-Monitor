@@ -26,16 +26,20 @@ Spec: `docs/PROTOCOL.md`.
    - **Protocol fidelity.** Formulas, constants and bit meanings come from the plan's
      Evidence section / `docs/PROTOCOL.md`. Never change a verified formula on your own. If
      the plan adds protocol knowledge, update `docs/PROTOCOL.md` in the same change.
-   - **`.ctr` compatibility.** Keep cp1251, CRLF, the 40-values-per-frame layout and the
-     footer exactly as documented. Anything that does not fit goes to CSV or another file.
+   - **`.ctr` compatibility.** The only recording format: keep cp1251, CRLF, the
+     40-values-per-frame layout and the footer exactly as documented. Anything that does not
+     fit goes to CSV export.
    - **Reader thread.** `ComLineReader.Loop` only timestamps, reads the line state and
      raises `EdgeReceived`. No UI access; UI updates go through `Dispatcher.BeginInvoke`.
      `FrameAssembler` is used under the existing lock.
    - **Win32.** `SafeFileHandle` for handles; check return values and report
-     `Marshal.GetLastWin32Error()`; stopping calls `SetCommMask(h, 0)` before dispose.
+     `Marshal.GetLastWin32Error()`; the port stays overlapped and Stop goes through the stop
+     event (see `CLAUDE.md` rule 6) — never block the UI thread on the port.
    - **Parameter keys.** Respect the prefixes in `CLAUDE.md` (`f…` flags, `b…` extra bytes);
      code filters by them.
-   - **UI text and comments in Ukrainian**, identifiers in English.
+   - **UI:** English labels, light theme — styles and brushes from `Themes/Light.xaml`, no new
+     hard-coded colors. Input line is DSR only; V6 right-bank data stays out.
+   - **Comments in Ukrainian**, identifiers in English.
 4. General quality:
    - Nullable is on — no `!` to silence real nulls.
    - Dispose what you open (`using`, `Dispose` on Stop).
@@ -44,9 +48,10 @@ Spec: `docs/PROTOCOL.md`.
 5. Verify (see "Verify" in `CLAUDE.md`):
    - `dotnet build JzMonitor.slnx` — 0 errors, 0 warnings.
    - `dotnet test JzMonitor.slnx`.
-   - `.ctr` touched: the byte-identical fixture test must stay green; if `../Chaser logs`
+   - `Recording/` touched: the `.ctr` byte-identical test must stay green; if `../Chaser logs`
      is present, also load → save every file there into a temp folder and compare bytes.
-   - UI touched: start the app and exercise the change with **Демо** where possible.
+   - UI touched: start the app and open a recording (`JzMonitor.exe "<file>.ctr"`) and look at
+     the result (screenshot) — layout bugs do not show up in tests.
    - Anything needing the real car or COM hardware: say "not verified on hardware" — never
      claim it works.
    - Docs-only changes: run nothing.
@@ -59,7 +64,7 @@ Spec: `docs/PROTOCOL.md`.
 
 ```
 Changed: <n> files (+ one-line intent per file)
-Protocol/.ctr impact: <none | what changed; .ctr byte-compatible yes/no>
+Protocol/format impact: <none | what changed; .ctr byte-compatible yes/no>
 Build: <passed|failed> (<warnings>)
 Tests: <passed|failed — which>
 Hardware: <not needed | not verified — what the developer must check on the car>

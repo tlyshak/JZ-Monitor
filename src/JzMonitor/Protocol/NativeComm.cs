@@ -10,8 +10,10 @@ internal static class NativeComm
 {
     public const uint GENERIC_READ = 0x80000000, GENERIC_WRITE = 0x40000000;
     public const uint OPEN_EXISTING = 3;
-    public const uint EV_CTS = 0x0008, EV_DSR = 0x0010;
-    public const uint MS_CTS_ON = 0x0010, MS_DSR_ON = 0x0020;
+    public const uint FILE_FLAG_OVERLAPPED = 0x40000000;
+    public const int ERROR_IO_PENDING = 997, ERROR_OPERATION_ABORTED = 995;
+    public const uint EV_DSR = 0x0010;
+    public const uint MS_DSR_ON = 0x0020;
     public const uint PURGE_ALL = 0x000F;
     public const uint SETDTR = 5, CLRDTR = 6, SETRTS = 3, CLRRTS = 4;
 
@@ -48,8 +50,15 @@ internal static class NativeComm
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool SetCommMask(SafeFileHandle h, uint mask);
 
+    /// <summary>Overlapped-варіант: mask і overlapped — некеровані буфери, що живуть до завершення операції.</summary>
     [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern bool WaitCommEvent(SafeFileHandle h, out uint mask, IntPtr overlapped);
+    public static extern bool WaitCommEvent(SafeFileHandle h, IntPtr mask, IntPtr overlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetOverlappedResult(SafeFileHandle h, IntPtr overlapped, out uint transferred, bool wait);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CancelIoEx(SafeFileHandle h, IntPtr overlapped);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool GetCommModemStatus(SafeFileHandle h, out uint status);

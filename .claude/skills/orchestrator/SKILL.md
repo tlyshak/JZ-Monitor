@@ -20,7 +20,7 @@ merge, or open a PR yourself.
   the current request or ask.
 - State up front what cannot be verified by an agent: the real COM port and the car. Every
   report line about hardware says `not verified on hardware`.
-- Note whether `../Chaser logs` is present (enables the full `.ctr` round-trip check).
+- Note whether `../Chaser logs` is present (enables the full `.ctr` import → export check).
 
 ## State ledger
 

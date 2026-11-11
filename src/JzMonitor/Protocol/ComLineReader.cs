@@ -1,34 +1,35 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 using static JzMonitor.Protocol.NativeComm;
 
 namespace JzMonitor.Protocol;
 
-public enum InputLine { Dsr, Cts }
-
 /// <summary>
-/// Читає діагностичний сигнал ECU через лінію стану модему (DSR за замовчуванням), як і оригінал:
+/// Читає діагностичний сигнал ECU через лінію DSR COM-порту, як і оригінал:
 /// WaitCommEvent(EV_DSR) → GetCommModemStatus → вимір тривалості попереднього рівня через Stopwatch (QPC).
+/// Порт відкривається в overlapped-режимі (як у CarTester): очікування події можна перервати
+/// подією зупинки, навіть коли сигналу на DSR немає. Синхронний дескриптор тут не годиться —
+/// Windows серіалізує виклики на ньому, і Stop зависав би на заблокованому WaitCommEvent.
 /// </summary>
 public sealed class ComLineReader : IEdgeSource
 {
     private readonly string _port;
-    private readonly InputLine _line;
     private readonly bool _invert;
     private readonly bool _dtr;
     private readonly bool _rts;
+    private readonly ManualResetEvent _stopEvent = new(false);
     private SafeFileHandle? _handle;
     private Thread? _thread;
-    private volatile bool _stop;
+    private bool _disposed;
 
     public event Action<Edge>? EdgeReceived;
     public event Action<string>? Error;
     public bool IsRunning => _thread is { IsAlive: true };
 
-    public ComLineReader(string port, InputLine line, bool invert, bool dtr, bool rts)
+    public ComLineReader(string port, bool invert, bool dtr, bool rts)
     {
         _port = port;
-        _line = line;
         _invert = invert;
         _dtr = dtr;
         _rts = rts;
@@ -37,10 +38,10 @@ public sealed class ComLineReader : IEdgeSource
     public void Start()
     {
         if (IsRunning) return;
-        var h = CreateFile(@"\\.\" + _port, GENERIC_READ | GENERIC_WRITE, 0, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
-        if (h.IsInvalid) ThrowLast($"Не вдалося відкрити {_port}");
+        var h = CreateFile(@"\\.\" + _port, GENERIC_READ | GENERIC_WRITE, 0, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, IntPtr.Zero);
+        if (h.IsInvalid) ThrowLast($"Cannot open {_port}");
 
-        var dcb = new DCB { DCBlength = (uint)System.Runtime.InteropServices.Marshal.SizeOf<DCB>() };
+        var dcb = new DCB { DCBlength = (uint)Marshal.SizeOf<DCB>() };
         if (!GetCommState(h, ref dcb)) { h.Dispose(); ThrowLast("GetCommState"); }
         dcb.BaudRate = 9600;
         dcb.ByteSize = 8;
@@ -55,10 +56,10 @@ public sealed class ComLineReader : IEdgeSource
         EscapeCommFunction(h, _dtr ? SETDTR : CLRDTR);
         EscapeCommFunction(h, _rts ? SETRTS : CLRRTS);
         PurgeComm(h, PURGE_ALL);
-        if (!SetCommMask(h, _line == InputLine.Dsr ? EV_DSR : EV_CTS)) { h.Dispose(); ThrowLast("SetCommMask"); }
+        if (!SetCommMask(h, EV_DSR)) { h.Dispose(); ThrowLast("SetCommMask"); }
 
         _handle = h;
-        _stop = false;
+        _stopEvent.Reset();
         _thread = new Thread(Loop) { IsBackground = true, Priority = ThreadPriority.Highest, Name = "COM line reader" };
         _thread.Start();
     }
@@ -66,25 +67,41 @@ public sealed class ComLineReader : IEdgeSource
     private void Loop()
     {
         var h = _handle!;
-        uint evMask = _line == InputLine.Dsr ? EV_DSR : EV_CTS;
-        uint msMask = _line == InputLine.Dsr ? MS_DSR_ON : MS_CTS_ON;
         long last = 0;
         double tickMs = 1000.0 / Stopwatch.Frequency;
+        using var ioEvent = new ManualResetEvent(false);
+        var waits = new WaitHandle[] { ioEvent, _stopEvent };
+        // OVERLAPPED і маска мають жити в незмінному місці пам'яті, поки операція не завершилась
+        IntPtr ov = Marshal.AllocHGlobal(Marshal.SizeOf<NativeOverlapped>());
+        IntPtr mask = Marshal.AllocHGlobal(sizeof(uint));
+        bool pending = false;
         try
         {
-            while (!_stop)
+            while (!_stopEvent.WaitOne(0))
             {
-                if (!WaitCommEvent(h, out uint ev, IntPtr.Zero))
+                ioEvent.Reset();
+                Marshal.StructureToPtr(new NativeOverlapped { EventHandle = ioEvent.SafeWaitHandle.DangerousGetHandle() }, ov, false);
+                Marshal.WriteInt32(mask, 0);
+
+                if (!WaitCommEvent(h, mask, ov))
                 {
-                    if (_stop) break;
-                    Error?.Invoke($"WaitCommEvent: помилка {System.Runtime.InteropServices.Marshal.GetLastWin32Error()}");
-                    break;
+                    int err = Marshal.GetLastWin32Error();
+                    if (err != ERROR_IO_PENDING) { Error?.Invoke($"WaitCommEvent error {err}"); break; }
+                    pending = true;
+                    if (WaitHandle.WaitAny(waits) == 1) break; // Stop
+                    pending = false;
+                    if (!GetOverlappedResult(h, ov, out _, false))
+                    {
+                        int e2 = Marshal.GetLastWin32Error();
+                        if (e2 == ERROR_OPERATION_ABORTED) break;
+                        Error?.Invoke($"WaitCommEvent error {e2}");
+                        break;
+                    }
                 }
                 long now = Stopwatch.GetTimestamp();
-                if (_stop) break;
-                if ((ev & evMask) == 0) continue; // SetCommMask(0) при зупинці теж повертає сюди
+                if (((uint)Marshal.ReadInt32(mask) & EV_DSR) == 0) continue;
                 GetCommModemStatus(h, out uint st);
-                bool on = (st & msMask) != 0;
+                bool on = (st & MS_DSR_ON) != 0;
                 // Подія = зміна рівня. Відрізок, що щойно закінчився, мав протилежний стан.
                 // Оригінал: "лінія тепер ON → записати 0", тобто рівень відрізка = 1, якщо він був ON.
                 int level = on ? 0 : 1;
@@ -98,20 +115,34 @@ public sealed class ComLineReader : IEdgeSource
         {
             Error?.Invoke(ex.Message);
         }
+        finally
+        {
+            if (pending)
+            {
+                // Скасувати незавершене очікування і дочекатися, поки ядро відпустить буфери
+                CancelIoEx(h, ov);
+                GetOverlappedResult(h, ov, out _, true);
+            }
+            Marshal.FreeHGlobal(mask);
+            Marshal.FreeHGlobal(ov);
+        }
     }
 
     public void Stop()
     {
-        _stop = true;
-        if (_handle is { IsInvalid: false } h)
-        {
-            SetCommMask(h, 0); // змушує WaitCommEvent повернутися
-            _thread?.Join(500);
-            h.Dispose();
-        }
+        if (_disposed) return;
+        _stopEvent.Set();
+        if (_thread is { } t && t != Thread.CurrentThread) t.Join(2000);
+        _handle?.Dispose();
         _handle = null;
         _thread = null;
     }
 
-    public void Dispose() => Stop();
+    public void Dispose()
+    {
+        if (_disposed) return;
+        Stop();
+        _disposed = true;
+        _stopEvent.Dispose();
+    }
 }

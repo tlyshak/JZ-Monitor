@@ -140,8 +140,10 @@ ship / no-ship recommendation.
   `FrameAssembler` only under its lock; no `Dispatcher.Invoke` (sync) from the reader
   thread; events unsubscribed or sources disposed on Stop.
 - **Win32 interop & handles.** Struct layouts (`DCB`), return values checked,
-  `GetLastWin32Error` read right after the failing call, `SetCommMask(h, 0)` before
-  dispose, no handle leaked on an exception path in `Start`.
+  `GetLastWin32Error` read right after the failing call, overlapped I/O with a stop event
+  (no cross-thread calls on a synchronous comm handle — that hangs the UI on Stop), pending
+  `WaitCommEvent` cancelled before its buffers are freed, no handle leaked on an exception
+  path in `Start`. Stop with no signal on DSR must return promptly.
 - **MVVM & bindings.** Properties raise `PropertyChanged`; binding paths exist (a typo fails
   silently in WPF — check the XAML against the ViewModel); commands' CanExecute is sensible.
 - **Data loss.** Unsaved recording prompts before New/Open/Start/close; bytes beyond the 12th
@@ -151,7 +153,9 @@ ship / no-ship recommendation.
 - **Scope.** NuGet packages in `src/`, new projects, frameworks → scope drift unless planned.
 - **Tests.** Is there a test change matching the code change? Expected values come from
   evidence, not from the implementation? Deterministic (seeded `Random`, no wall clock)?
-- **UI text.** Ukrainian, consistent terms (ОР, ХХ, кадр, байт), no English left in labels.
+- **UI design & text.** English labels, short and consistent with the rest; colors and styles
+  from `Themes/Light.xaml` (no stray hard-coded colors); layout holds at 1100×700; DSR is the
+  only input line; no V6 right-bank data.
 
 ## Seams of the change (highest-value hunting grounds)
 
@@ -163,7 +167,7 @@ ship / no-ship recommendation.
 - **Original vs. new behavior.** Where JZ Monitor intentionally differs from CarTester
   (frame length, hidden bits), is the difference visible to the user and documented?
 - **Threading a value through.** A new setting must reach `ComLineReader` /
-  `FrameAssembler` / `ParameterDecoder` on every path (live, demo, replay, file load).
+  `FrameAssembler` / `ParameterDecoder` on every path (live, replay, file load).
 - **Correctness.** Off-by-one in bit/byte indexes (CarTester numbers bytes from 1), swallowed
   errors (`catch { }`) without user feedback.
 
@@ -172,7 +176,7 @@ ship / no-ship recommendation.
 - **Concurrency.** Reader thread vs UI thread; Stop while a frame is being decoded; double
   Start.
 - **Performance.** Per-edge allocations, decoding all frames on every chart redraw, UI
-  freezes when loading large `.ctr` files (thousands of frames).
+  freezes when loading large recordings (thousands of frames).
 - **Possible failures.** COM port unplugged mid-read (USB adapter), `WaitCommEvent` errors,
   malformed `.ctr` (missing footer, extra blank lines), invalid numbers in settings text boxes.
 

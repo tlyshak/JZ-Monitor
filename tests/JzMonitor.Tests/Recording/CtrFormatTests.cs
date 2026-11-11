@@ -8,11 +8,11 @@ public class CtrFormatTests
     [Fact]
     public void SaveCtr_ThenLoadCtr_RoundTripsFramesAndFooter()
     {
-        var rec = new CtrRecording();
+        var rec = new LogRecording { Ctr = new CtrExtras() };
         rec.Vehicle.Values[0] = "Chaser";
         rec.Vehicle.Values[1] = "2JZ-GTE";
         rec.Comments.Add("Холодний пуск");
-        rec.Bookmarks[0] = "3";
+        rec.Ctr.Bookmarks[0] = "3";
         var t0 = new DateTime(2026, 11, 11, 10, 0, 0);
         for (int i = 0; i < 5; i++)
             rec.Frames.Add(new ObdFrame
@@ -26,8 +26,8 @@ public class CtrFormatTests
 
         try
         {
-            RecordingIO.SaveCtr(path, rec);
-            var back = RecordingIO.LoadCtr(path);
+            CtrFormat.Save(path, rec);
+            var back = CtrFormat.Load(path);
 
             Assert.Equal(5, back.Frames.Count);
             for (int i = 0; i < 5; i++)
@@ -40,7 +40,7 @@ public class CtrFormatTests
             Assert.Equal("Chaser", back.Vehicle.Values[0]);
             Assert.Equal("2JZ-GTE", back.Vehicle.Values[1]);
             Assert.Equal(rec.Comments, back.Comments);
-            Assert.Equal("3", back.Bookmarks[0]);
+            Assert.Equal("3", back.Ctr!.Bookmarks[0]);
         }
         finally
         {
@@ -51,16 +51,16 @@ public class CtrFormatTests
     [Fact]
     public void SaveCtr_FrameLayout_Is40ValuesPlusTime()
     {
-        var rec = new CtrRecording();
+        var rec = new LogRecording();
         rec.Frames.Add(new ObdFrame { Time = new DateTime(2026, 1, 1, 9, 5, 7), Bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0b0011_0010, 0x80] });
         var path = Path.Combine(Path.GetTempPath(), $"jz_{Guid.NewGuid():N}.ctr");
 
         try
         {
-            RecordingIO.SaveCtr(path, rec);
+            CtrFormat.Save(path, rec);
             var lines = File.ReadAllLines(path, RecordingIO.Cp1251);
 
-            Assert.Equal(RecordingIO.CtrHeader, lines[0]);
+            Assert.Equal(CtrFormat.Header, lines[0]);
             Assert.Equal("1", lines[1]);
             var frame = lines.Skip(2).Take(41).ToArray();
             Assert.Equal("10", frame[9]);
@@ -80,7 +80,7 @@ public class CtrFormatTests
     /// </summary>
     private static string WriteCarTesterStyleFile()
     {
-        var lines = new List<string> { RecordingIO.CtrHeader, "2" };
+        var lines = new List<string> { CtrFormat.Header, "2" };
         int[][] frames =
         [
             [242, 0, 125, 0, 95, 89, 0, 0, 0, 0],
@@ -114,16 +114,16 @@ public class CtrFormatTests
 
         try
         {
-            var rec = RecordingIO.LoadCtr(path);
+            var rec = CtrFormat.Load(path);
 
             Assert.Equal(2, rec.Frames.Count);
             Assert.Equal([40, 85, 88, 26, 36, 226, 0, 0, 128, 0, 0b0010_0011, 0b1001_1010], rec.Frames[1].Bytes);
             Assert.Equal("100011100010", rec.Frames[1].IdBitString);
             Assert.True(rec.Frames[1].Marked);
             Assert.Equal(new TimeSpan(13, 39, 30), rec.Frames[1].Time.TimeOfDay);
-            Assert.Equal("2", rec.Bookmarks[0]);
+            Assert.Equal("2", rec.Ctr!.Bookmarks[0]);
             Assert.Equal(["тестовий запуск"], rec.Comments);
-            Assert.Equal(["друге memo"], rec.Comments2);
+            Assert.Equal(["друге memo"], rec.Ctr.Comments2);
             Assert.Equal(["Test car", "1JZ-GTE", "A340E", "1995", "100000", "Рядний", "6", "АКПП", "RWD"], rec.Vehicle.Values);
         }
         finally
@@ -140,7 +140,7 @@ public class CtrFormatTests
 
         try
         {
-            RecordingIO.SaveCtr(copy, RecordingIO.LoadCtr(path));
+            CtrFormat.Save(copy, CtrFormat.Load(path));
 
             Assert.Equal(File.ReadAllBytes(path), File.ReadAllBytes(copy));
         }

@@ -10,21 +10,50 @@ using Microsoft.Win32;
 
 namespace JzMonitor.ViewModels;
 
+public enum LinkState { Offline, Waiting, Live, Errors }
+
+/// <summary>Один параметр: рядок таблиці, плитка на панелі приладів або індикатор біта.</summary>
 public sealed class ParamRow : ObservableObject
 {
-    private string _text = "";
+    private string _text = "—";
     private string _raw = "";
+    private string _unit = "";
     private bool _charted;
+    private bool _isOn;
+    private double _fraction;
+    private Brush _accent = Brushes.Transparent;
+    private string _maxText = "—";
+    private string _minText = "—";
+
     public required string Key { get; init; }
     public required string Name { get; init; }
-    public string Unit { get; set; } = "";
     public bool HiddenInOriginal { get; init; }
     public bool IsFlag => Key.StartsWith('f');
+    public string BitLabel => IsFlag ? Key[1..] : "";
+    /// <summary>Біт, увімкнення якого — тривожна подія (детонація).</summary>
+    public bool IsAlarm => Key == "f11.4";
+
+    public string Unit { get => _unit; set => Set(ref _unit, value); }
     public string Text { get => _text; set => Set(ref _text, value); }
     public string Raw { get => _raw; set => Set(ref _raw, value); }
-    public bool Charted { get => _charted; set { if (Set(ref _charted, value)) ChartedChanged?.Invoke(); } }
+    public bool IsOn { get => _isOn; set => Set(ref _isOn, value); }
+    /// <summary>0..1 — заповнення шкали на плитці (за сирим байтом).</summary>
+    public double Fraction { get => _fraction; set => Set(ref _fraction, value); }
+    /// <summary>Максимум за сесію (поточний запис).</summary>
+    public string MaxText { get => _maxText; set => Set(ref _maxText, value); }
+    /// <summary>Мінімум за сесію (поточний запис).</summary>
+    public string MinText { get => _minText; set => Set(ref _minText, value); }
+    /// <summary>Які статистики показувати для цього параметра.</summary>
+    public bool ShowMin => !IsFlag && MinKeys.Contains(Key);
+    public bool ShowMax => !IsFlag && !NoMaxKeys.Contains(Key);
+
+    private static readonly HashSet<string> MinKeys = ["inj", "ign", "iac"];
+    private static readonly HashSet<string> NoMaxKeys = ["iac"];
+    /// <summary>Колір шкали/значення на плитці.</summary>
+    public Brush Accent { get => _accent; set => Set(ref _accent, value); }
     public Color Color { get; set; }
     public Brush ColorBrush => new SolidColorBrush(Color);
+    public bool Charted { get => _charted; set { if (Set(ref _charted, value)) ChartedChanged?.Invoke(); } }
     public event Action? ChartedChanged;
 }
 
@@ -32,27 +61,41 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 {
     private static readonly Color[] Palette =
     [
-        Color.FromRgb(0x4F, 0xC3, 0xF7), Color.FromRgb(0xFF, 0xB7, 0x4D), Color.FromRgb(0x81, 0xC7, 0x84),
-        Color.FromRgb(0xE5, 0x73, 0x73), Color.FromRgb(0xBA, 0x68, 0xC8), Color.FromRgb(0xFF, 0xF1, 0x76),
-        Color.FromRgb(0x4D, 0xD0, 0xE1), Color.FromRgb(0xF0, 0x62, 0x92)
+        Color.FromRgb(0xF2, 0x6B, 0x1D), Color.FromRgb(0x1E, 0x88, 0xE5), Color.FromRgb(0x18, 0xA8, 0x66),
+        Color.FromRgb(0x8E, 0x44, 0xAD), Color.FromRgb(0xE5, 0x48, 0x4D), Color.FromRgb(0x00, 0x97, 0xA7),
+        Color.FromRgb(0xC9, 0x8A, 0x00), Color.FromRgb(0x5C, 0x6B, 0x7A)
     ];
+
+    /// <summary>Параметри, що показуються великими плитками.</summary>
+    private static readonly string[] TileKeys = ["rpm", "ect", "air", "inj", "ign", "tps", "iac", "spd"];
+
+    private static readonly Brush AccentBrush = Freeze(Color.FromRgb(0xF2, 0x6B, 0x1D));
+    private static readonly Brush ColdBrush = Freeze(Color.FromRgb(0x1E, 0x88, 0xE5));
+    private static readonly Brush OkBrush = Freeze(Color.FromRgb(0x18, 0xA8, 0x66));
+    private static readonly Brush HotBrush = Freeze(Color.FromRgb(0xE5, 0x48, 0x4D));
 
     private readonly Dispatcher _ui = Application.Current.Dispatcher;
     private readonly FrameAssembler _assembler = new();
+    private readonly object _asmLock = new();
+    private readonly DispatcherTimer _linkTimer;
     private IEdgeSource? _source;
     private EdgeLogger? _edgeLog;
-    private CtrRecording _rec = new();
+    private LogRecording _rec = new();
     private bool _dirty;
+    private DateTime _lastValidFrame;
+    private int _okFrames, _badFrames;
+    /// <summary>Мінімуми й максимуми параметрів за поточний запис (лише кадри з працюючим двигуном).</summary>
+    private readonly Dictionary<string, ParamValue> _min = new(), _max = new();
 
     public DecoderSettings Settings { get; }
     public ObservableCollection<string> Ports { get; } = new();
     public ObservableCollection<ParamRow> Parameters { get; } = new();
+    public ObservableCollection<ParamRow> Tiles { get; } = new();
+    public ObservableCollection<ParamRow> Flags { get; } = new();
+    /// <summary>Усе, крім бітів стану (вони у блоці ECU STATUS).</summary>
+    public ObservableCollection<ParamRow> Analog { get; } = new();
     public ObservableCollection<string> RawLog { get; } = new();
-    public string[] AirModes { get; } = ["Сирий байт", "MAP, кПа", "MAP, мм рт.ст.", "MAP турбо, кПа", "MAP турбо, мм рт.ст.", "MAF, г/с", "VAF, В"];
-    public string[] IacModes { get; } = ["Сирий байт", "% від 255", "Кроки"];
-    public string[] ThrottleModes { get; } = ["Сирий байт", "Градуси", "%"];
-    public string[] AfModes { get; } = ["Сирий байт", "Вольти", "%"];
-    public string[] LineModes { get; } = ["DSR (як оригінал)", "CTS"];
+
 
     public MainViewModel()
     {
@@ -64,30 +107,40 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         RefreshPortsCommand = new RelayCommand(RefreshPorts, () => !IsRunning);
         StartCommand = new RelayCommand(StartStop, () => IsRunning || !string.IsNullOrEmpty(Settings.Port));
-        DemoCommand = new RelayCommand(StartDemo, () => !IsRunning);
-        OpenCommand = new RelayCommand(Open, () => !IsRunning);
-        SaveCommand = new RelayCommand(() => SaveCtr(), () => _rec.Frames.Count > 0);
-        ExportCsvCommand = new RelayCommand(ExportCsv, () => _rec.Frames.Count > 0);
         NewCommand = new RelayCommand(New, () => !IsRunning);
+        OpenCommand = new RelayCommand(Open, () => !IsRunning);
+        SaveCommand = new RelayCommand(() => Save(), () => _rec.Frames.Count > 0);
+        ExportCsvCommand = new RelayCommand(ExportCsv, () => _rec.Frames.Count > 0);
         ImportIniCommand = new RelayCommand(ImportIni);
         ReplayEdgesCommand = new RelayCommand(ReplayEdges, () => !IsRunning);
         ToggleMarkCommand = new RelayCommand(ToggleMark, () => CurrentFrame != null);
         DeleteFrameCommand = new RelayCommand(DeleteFrame, () => !IsRunning && CurrentFrame != null);
         VehicleCommand = new RelayCommand(EditVehicle);
+        PrevCommand = new RelayCommand(() => CurrentIndex--, () => _currentIndex > 0);
+        NextCommand = new RelayCommand(() => CurrentIndex++, () => _currentIndex < _rec.Frames.Count - 1);
+        LatestCommand = new RelayCommand(() => { Follow = true; CurrentIndex = _rec.Frames.Count - 1; }, () => _rec.Frames.Count > 0);
+
+        _linkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _linkTimer.Tick += (_, _) => UpdateLinkState();
+        _linkTimer.Start();
+
+        RebuildParameters();
     }
 
     public RelayCommand RefreshPortsCommand { get; }
     public RelayCommand StartCommand { get; }
-    public RelayCommand DemoCommand { get; }
+    public RelayCommand NewCommand { get; }
     public RelayCommand OpenCommand { get; }
     public RelayCommand SaveCommand { get; }
     public RelayCommand ExportCsvCommand { get; }
-    public RelayCommand NewCommand { get; }
     public RelayCommand ImportIniCommand { get; }
     public RelayCommand ReplayEdgesCommand { get; }
     public RelayCommand ToggleMarkCommand { get; }
     public RelayCommand DeleteFrameCommand { get; }
     public RelayCommand VehicleCommand { get; }
+    public RelayCommand PrevCommand { get; }
+    public RelayCommand NextCommand { get; }
+    public RelayCommand LatestCommand { get; }
 
     #region Властивості для прив'язки
 
@@ -95,9 +148,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsRunning
     {
         get => _isRunning;
-        private set { if (Set(ref _isRunning, value)) OnPropertyChanged(nameof(StartText)); }
+        private set
+        {
+            if (!Set(ref _isRunning, value)) return;
+            OnPropertyChanged(nameof(StartText));
+            OnPropertyChanged(nameof(StartIcon));
+            UpdateLinkState();
+        }
     }
-    public string StartText => IsRunning ? "■ Стоп" : "▶ Читати";
+    public string StartText => IsRunning ? "Stop" : "Connect";
+    public string StartIcon => IsRunning ? "" : "";
+
+    private LinkState _link = LinkState.Offline;
+    public LinkState Link { get => _link; private set { if (Set(ref _link, value)) OnPropertyChanged(nameof(LinkText)); } }
+    public string LinkText => Link switch
+    {
+        LinkState.Live => "LIVE",
+        LinkState.Waiting => "NO SIGNAL",
+        LinkState.Errors => "ERRORS",
+        _ => ""
+    };
 
     public string? SelectedPort
     {
@@ -105,16 +175,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set { Settings.Port = value; OnPropertyChanged(); Settings.Save(); }
     }
 
-    public int AirIndex { get => (int)Settings.Air; set { Settings.Air = (AirSensor)value; SettingsChanged(); } }
-    public int IacIndex { get => (int)Settings.Iac; set { Settings.Iac = (IacMode)value; SettingsChanged(); } }
-    public int ThrottleIndex { get => (int)Settings.Throttle; set { Settings.Throttle = (ThrottleMode)value; SettingsChanged(); } }
-    public int AfIndex { get => (int)Settings.Af; set { Settings.Af = (AfMode)value; SettingsChanged(); } }
-    public int LineIndex { get => (int)Settings.Line; set { Settings.Line = (InputLine)value; SettingsChanged(); } }
-    public bool CoolantDirect { get => Settings.CoolantDirect; set { Settings.CoolantDirect = value; SettingsChanged(); } }
-    public bool Invert { get => Settings.Invert; set { Settings.Invert = value; SettingsChanged(); } }
-    public bool Dtr { get => Settings.Dtr; set { Settings.Dtr = value; SettingsChanged(); } }
-    public bool Rts { get => Settings.Rts; set { Settings.Rts = value; SettingsChanged(); } }
-    public int InjectorFlow { get => Settings.InjectorFlow; set { Settings.InjectorFlow = value; SettingsChanged(); } }
+    public int InjectorFlowCcMin { get => Settings.InjectorFlowCcMin; set { Settings.InjectorFlowCcMin = value; SettingsChanged(); } }
     public int InjectorCount { get => Settings.InjectorCount; set { Settings.InjectorCount = value; SettingsChanged(); } }
     public int InjectionRate { get => Settings.InjectionRate; set { Settings.InjectionRate = value; SettingsChanged(); } }
     public double BitTimeMs { get => Settings.BitTimeMs; set { Settings.BitTimeMs = value; SettingsChanged(); } }
@@ -147,33 +208,54 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public int MaxIndex => Math.Max(0, _rec.Frames.Count - 1);
     public ObdFrame? CurrentFrame => _currentIndex >= 0 && _currentIndex < _rec.Frames.Count ? _rec.Frames[_currentIndex] : null;
 
-    private string _frameInfo = "Немає даних";
-    public string FrameInfo { get => _frameInfo; set => Set(ref _frameInfo, value); }
-    private string _idInfo = "";
+    private string _frameNumber = "—";
+    public string FrameNumber { get => _frameNumber; set => Set(ref _frameNumber, value); }
+    private string _frameTime = "";
+    public string FrameTime { get => _frameTime; set => Set(ref _frameTime, value); }
+    private bool _engineOff;
+    /// <summary>У поточному кадрі двигун не працює (RPM = 0): впорскування й кут не показуються.</summary>
+    public bool EngineOff { get => _engineOff; set => Set(ref _engineOff, value); }
+    private bool _frameMarked;
+    public bool FrameMarked { get => _frameMarked; set => Set(ref _frameMarked, value); }
+    private string _idInfo = "—";
     public string IdInfo { get => _idInfo; set => Set(ref _idInfo, value); }
-    private string _hexInfo = "";
+    private string _hexInfo = "—";
     public string HexInfo { get => _hexInfo; set => Set(ref _hexInfo, value); }
-    private string _status = "Готово";
+    private int _byteCount;
+    public int ByteCount { get => _byteCount; set => Set(ref _byteCount, value); }
+
+    private string _status = "Ready";
     public string Status { get => _status; set => Set(ref _status, value); }
+    private string _counters = "";
+    public string Counters { get => _counters; set => Set(ref _counters, value); }
     private string _lineStats = "";
     public string LineStats { get => _lineStats; set => Set(ref _lineStats, value); }
-    private bool _linkOk;
-    public bool LinkOk { get => _linkOk; set => Set(ref _linkOk, value); }
 
     private IReadOnlyList<ChartSeries>? _chart;
     public IReadOnlyList<ChartSeries>? Chart { get => _chart; set => Set(ref _chart, value); }
+    public int ChartStart { get; private set; }
+    public int ChartCursor => _currentIndex - ChartStart;
 
-    public string Title => "JZ Monitor — Toyota OBD-1" + (_rec.Source != null ? " — " + Path.GetFileName(_rec.Source) : "") + (_dirty ? " *" : "");
+    public string Title => "JZ Monitor" + (_rec.Source != null ? " — " + Path.GetFileName(_rec.Source) : "") + (_dirty ? " •" : "");
+    public string VehicleSummary
+    {
+        get
+        {
+            var s = string.Join("  ·  ", new[] { 0, 1, 2, 3 }.Select(i => _rec.Vehicle.Values[i]).Where(v => !string.IsNullOrWhiteSpace(v)));
+            return s.Length > 0 ? s : "Toyota OBD-1 live data";
+        }
+    }
 
     #endregion
 
-    private int _okFrames, _badFrames;
-
     private void ApplyAssemblerSettings()
     {
-        _assembler.BitTimeMs = Settings.BitTimeMs > 1 ? Settings.BitTimeMs : 8.2;
-        _assembler.GapBits = Math.Max(12, Settings.GapBits);
-        _assembler.MinDataBytes = Math.Max(1, Settings.MinDataBytes);
+        lock (_asmLock)
+        {
+            _assembler.BitTimeMs = Settings.BitTimeMs > 1 ? Settings.BitTimeMs : 8.2;
+            _assembler.GapBits = Math.Max(12, Settings.GapBits);
+            _assembler.MinDataBytes = Math.Max(1, Settings.MinDataBytes);
+        }
     }
 
     private void SettingsChanged()
@@ -193,9 +275,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void TryLoadDefaultVehicle()
     {
-        var ini = Path.Combine(AppContext.BaseDirectory, "CarTester.ini");
-        if (!File.Exists(ini)) ini = Path.Combine(Directory.GetParent(AppContext.BaseDirectory)?.FullName ?? "", "CarTester.ini");
-        try { if (File.Exists(ini)) _rec.Vehicle = VehicleInfo.FromIni(ini); } catch { }
+        var dir = AppContext.BaseDirectory;
+        foreach (var ini in new[] { Path.Combine(dir, "CarTester.ini"), Path.Combine(dir, "..", "CarTester.ini") })
+        {
+            try
+            {
+                if (File.Exists(ini)) { _rec.Vehicle = VehicleInfo.FromIni(ini); return; }
+            }
+            catch { }
+        }
+    }
+
+    private void UpdateLinkState()
+    {
+        if (!IsRunning) { Link = LinkState.Offline; return; }
+        var age = DateTime.Now - _lastValidFrame;
+        Link = age < TimeSpan.FromSeconds(4) ? LinkState.Live : _badFrames > 0 ? LinkState.Errors : LinkState.Waiting;
     }
 
     #region Читання
@@ -204,24 +299,24 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (IsRunning) { Stop(); return; }
         if (string.IsNullOrEmpty(Settings.Port)) return;
-        Start(new ComLineReader(Settings.Port, Settings.Line, Settings.Invert, Settings.Dtr, Settings.Rts), Settings.Port);
+        Start(new ComLineReader(Settings.Port, Settings.Invert, Settings.Dtr, Settings.Rts), Settings.Port);
     }
-
-    private void StartDemo() => Start(new SimulatedSource(Settings.BitTimeMs), "Демо");
 
     private void Start(IEdgeSource src, string name)
     {
-        if (!ConfirmDiscard()) return;
+        if (!ConfirmDiscard("Connecting starts a new recording — the current one will be lost if you don't save it.")) { src.Dispose(); return; }
         ResetRecording();
-        _assembler.Reset();
+        RawLog.Clear();
+        lock (_asmLock) _assembler.Reset();
         _okFrames = _badFrames = 0;
+        _lastValidFrame = DateTime.MinValue;
         if (RecordEdges)
         {
-            var dlg = new SaveFileDialog { Filter = "Сирі фронти (*.edges.csv)|*.edges.csv", FileName = $"edges_{DateTime.Now:yyyyMMdd_HHmmss}.edges.csv" };
+            var dlg = new SaveFileDialog { Filter = "Raw edge log (*.edges.csv)|*.edges.csv", FileName = $"edges_{DateTime.Now:yyyyMMdd_HHmmss}.edges.csv" };
             if (dlg.ShowDialog() == true) _edgeLog = new EdgeLogger(dlg.FileName);
         }
         src.EdgeReceived += OnEdge;
-        src.Error += msg => _ui.BeginInvoke(() => { Status = "Помилка: " + msg; Stop(); });
+        src.Error += msg => _ui.BeginInvoke(() => { Status = "Error: " + msg; Stop(); });
         try
         {
             src.Start();
@@ -231,16 +326,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             src.Dispose();
             _edgeLog?.Dispose();
             _edgeLog = null;
-            MessageBox.Show(ex.Message, "Помилка відкриття порту", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Cannot open port", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
         _source = src;
         IsRunning = true;
         Follow = true;
-        Status = $"Читання: {name}. Очікування синхронізації…";
+        Status = $"Reading {name} — waiting for frame sync…";
     }
-
-    private readonly object _asmLock = new();
 
     private void OnEdge(Edge e)
     {
@@ -255,8 +348,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _edgeLog?.Dispose();
         _edgeLog = null;
         IsRunning = false;
-        LinkOk = false;
-        Status = $"Зупинено. Кадрів: {_rec.Frames.Count(f => f.Valid)}, помилкових: {_badFrames}";
+        Status = $"Stopped. {_rec.Frames.Count} frames recorded, {_badFrames} rejected.";
     }
 
     private void OnFrame(ObdFrame f)
@@ -265,23 +357,29 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _ui.BeginInvoke(() =>
         {
             AddRawLog(f);
-            if (f.Valid) _okFrames++; else _badFrames++;
-            LinkOk = f.Valid;
-            LineStats = $"Біт: {bit:0.00} мс | відхилення фронтів: сер. {avg:0.00}, макс. {max:0.00} мс" +
-                        (max > 2 ? " — можливі збої (оригінал: >2 мс)" : "");
-            Status = $"OK: {_okFrames}  помилок: {_badFrames}  байтів у кадрі: {f.Bytes.Length}";
+            if (f.Valid)
+            {
+                if (_okFrames == 0) Status = "Receiving frames";
+                _okFrames++;
+                _lastValidFrame = DateTime.Now;
+            }
+            else _badFrames++;
+            UpdateLinkState();
+            LineStats = $"Bit {bit:0.00} ms  ·  jitter avg {avg:0.00} / max {max:0.00} ms" + (max > 2 ? "  ⚠ unstable timing" : "");
+            Counters = $"{_okFrames} ok  ·  {_badFrames} rejected";
             if (!f.Valid) return;
             _rec.Frames.Add(f);
+            AccumulateStats(f);
             MarkDirty();
             OnPropertyChanged(nameof(MaxIndex));
             if (Follow) { _currentIndex = _rec.Frames.Count - 1; OnPropertyChanged(nameof(CurrentIndex)); ShowFrame(); }
-            else UpdateChart();
+            else { UpdateStatTexts(); UpdateChart(); }
         });
     }
 
     private void AddRawLog(ObdFrame f)
     {
-        string line = $"{f.Time:HH:mm:ss}  ID {f.IdBitString}  [{f.Bytes.Length,2}]  {f.HexDump}" + (f.Valid ? "" : "   ✗ " + f.Error);
+        string line = $"{f.Time:HH:mm:ss.fff}  [{f.Bytes.Length,2}]  {f.HexDump}" + (f.Valid ? "" : "   ✗ " + f.Error);
         RawLog.Insert(0, line);
         while (RawLog.Count > 300) RawLog.RemoveAt(RawLog.Count - 1);
     }
@@ -289,19 +387,20 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>Програвання раніше записаного файлу сирих фронтів через декодер (з поточними налаштуваннями).</summary>
     private void ReplayEdges()
     {
-        var dlg = new OpenFileDialog { Filter = "Сирі фронти (*.edges.csv)|*.edges.csv|Усі файли|*.*" };
-        if (dlg.ShowDialog() != true || !ConfirmDiscard()) return;
+        if (!ConfirmDiscard("Replaying an edge log replaces the current recording.")) return;
+        var dlg = new OpenFileDialog { Filter = "Raw edge log (*.edges.csv)|*.edges.csv|All files|*.*" };
+        if (dlg.ShowDialog() != true) return;
         ResetRecording();
+        RawLog.Clear();
         var asm = new FrameAssembler { BitTimeMs = _assembler.BitTimeMs, GapBits = _assembler.GapBits, MinDataBytes = _assembler.MinDataBytes };
         int bad = 0;
-        var t = File.GetLastWriteTime(dlg.FileName);
         asm.FrameCompleted += f =>
         {
             AddRawLog(f);
             if (f.Valid) _rec.Frames.Add(f); else bad++;
         };
         foreach (var e in EdgeLogger.Read(dlg.FileName)) asm.Push(e);
-        Status = $"Фронти з {Path.GetFileName(dlg.FileName)}: кадрів {_rec.Frames.Count}, помилкових {bad}; біт {asm.MeasuredBitMs:0.00} мс";
+        Status = $"Replayed {Path.GetFileName(dlg.FileName)}: {_rec.Frames.Count} frames, {bad} rejected, bit {asm.MeasuredBitMs:0.00} ms";
         AfterLoad();
     }
 
@@ -311,19 +410,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void Open()
     {
-        var dlg = new OpenFileDialog { Filter = "Car Tester (*.ctr)|*.ctr|Усі файли|*.*" };
-        if (dlg.ShowDialog() != true || !ConfirmDiscard()) return;
+        if (!ConfirmDiscard("Opening another file closes the current recording.")) return;
+        var dlg = new OpenFileDialog { Filter = "CarTester log (*.ctr)|*.ctr|All files|*.*" };
+        if (dlg.ShowDialog() != true) return;
+        OpenFile(dlg.FileName);
+    }
+
+    /// <summary>Відкрити запис .ctr (з діалогу або з командного рядка).</summary>
+    public void OpenFile(string path)
+    {
         try
         {
-            _rec = RecordingIO.LoadCtr(dlg.FileName);
+            _rec = CtrFormat.Load(path);
             RawLog.Clear();
-            Status = $"Завантажено {_rec.Frames.Count} кадрів";
             _dirty = false;
+            Status = $"Loaded {_rec.Frames.Count} frames from {Path.GetFileName(path)}";
             AfterLoad();
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Помилка завантаження", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Cannot open file", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -331,70 +437,74 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(MaxIndex));
         OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(VehicleSummary));
         _currentIndex = -1;
         CurrentIndex = 0;
+        UpdateLinkState();
         RebuildParameters();
     }
 
-    private bool SaveCtr()
+    private bool Save()
     {
         var dlg = new SaveFileDialog
         {
-            Filter = "Car Tester (*.ctr)|*.ctr",
+            Filter = "CarTester log (*.ctr)|*.ctr",
             DefaultExt = ".ctr",
-            FileName = _rec.Source != null && _rec.Source.EndsWith(".ctr", StringComparison.OrdinalIgnoreCase)
-                ? Path.GetFileName(_rec.Source) : $"{DateTime.Now:yyyy-MM-dd_HH-mm}.ctr"
+            FileName = _rec.Source != null ? Path.GetFileName(_rec.Source) : $"{DateTime.Now:yyyy-MM-dd_HH-mm}.ctr"
         };
         if (dlg.ShowDialog() != true) return false;
         try
         {
-            RecordingIO.SaveCtr(dlg.FileName, _rec);
+            CtrFormat.Save(dlg.FileName, _rec);
             _rec.Source = dlg.FileName;
             _dirty = false;
             OnPropertyChanged(nameof(Title));
             int extra = _rec.Frames.Count(f => f.Bytes.Length > 12);
-            Status = $"Збережено {dlg.FileName}" + (extra > 0 ? $". Увага: {extra} кадр(ів) мали байти 13+, у .ctr вони не вміщуються — збережіть ще й CSV." : "");
+            Status = "Saved " + dlg.FileName + (extra > 0 ? $" — {extra} frame(s) had bytes 13+ that .ctr cannot hold (use CSV to keep them)" : "");
             return true;
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Помилка запису", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Cannot save file", MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
     }
 
     private void ExportCsv()
     {
-        var dlg = new SaveFileDialog { Filter = "CSV (Excel)|*.csv", DefaultExt = ".csv", FileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm}.csv" };
+        var dlg = new SaveFileDialog { Filter = "CSV for Excel (*.csv)|*.csv", DefaultExt = ".csv", FileName = $"{DateTime.Now:yyyy-MM-dd_HH-mm}.csv" };
         if (dlg.ShowDialog() != true) return;
         try
         {
             RecordingIO.SaveCsv(dlg.FileName, _rec.Frames, Settings);
-            Status = "Експортовано " + dlg.FileName;
+            Status = "Exported " + dlg.FileName;
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Помилка запису", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Cannot export", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void New()
     {
-        if (!ConfirmDiscard()) return;
+        if (!ConfirmDiscard("A new recording clears the current one.")) return;
         ResetRecording();
         RawLog.Clear();
-        Status = "Новий запис";
+        Status = "New recording";
     }
 
     private void ResetRecording()
     {
         var vehicle = _rec.Vehicle;
-        _rec = new CtrRecording { Vehicle = vehicle };
+        _rec = new LogRecording { Vehicle = vehicle };
+        _min.Clear();
+        _max.Clear();
         _dirty = false;
         _currentIndex = -1;
         OnPropertyChanged(nameof(CurrentIndex));
         OnPropertyChanged(nameof(MaxIndex));
         OnPropertyChanged(nameof(Title));
+        UpdateLinkState();
         ShowFrame();
     }
 
@@ -405,17 +515,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Settings.ImportCarTesterIni(dlg.FileName);
         try { _rec.Vehicle = VehicleInfo.FromIni(dlg.FileName); } catch { }
         Settings.Save();
-        foreach (var p in new[] { nameof(AirIndex), nameof(IacIndex), nameof(ThrottleIndex), nameof(AfIndex), nameof(CoolantDirect),
-                     nameof(InjectorFlow), nameof(InjectorCount), nameof(InjectionRate), nameof(Dtr) })
+        foreach (var p in new[] { nameof(InjectorFlowCcMin), nameof(InjectorCount), nameof(InjectionRate), nameof(VehicleSummary) })
             OnPropertyChanged(p);
         RebuildParameters();
-        Status = "Налаштування імпортовано з " + Path.GetFileName(dlg.FileName);
+        Status = "Settings imported from " + Path.GetFileName(dlg.FileName);
     }
 
     private void EditVehicle()
     {
         var w = new VehicleWindow(_rec) { Owner = Application.Current.MainWindow };
-        if (w.ShowDialog() == true) MarkDirty();
+        if (w.ShowDialog() != true) return;
+        MarkDirty();
+        OnPropertyChanged(nameof(VehicleSummary));
     }
 
     private void MarkDirty()
@@ -425,15 +536,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Title));
     }
 
-    /// <summary>true — можна продовжувати (дані збережено або їх не шкода).</summary>
-    public bool ConfirmDiscard()
+    /// <summary>true — можна продовжувати (дані збережено або їх не шкода). reason — що станеться без збереження.</summary>
+    public bool ConfirmDiscard(string reason)
     {
         if (!_dirty || _rec.Frames.Count == 0) return true;
-        var r = MessageBox.Show("Дані не збережено. Зберегти у файл .ctr?", "Увага", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
-        return r switch
+        return SaveChangesDialog.Ask(_rec, reason) switch
         {
-            MessageBoxResult.Yes => SaveCtr(),
-            MessageBoxResult.No => true,
+            SaveChoice.Save => Save(),
+            SaveChoice.Discard => true,
             _ => false
         };
     }
@@ -450,6 +560,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (CurrentFrame is not { } f) return;
         _rec.Frames.Remove(f);
+        RecomputeStats();
         MarkDirty();
         OnPropertyChanged(nameof(MaxIndex));
         _currentIndex = Math.Min(_currentIndex, _rec.Frames.Count - 1);
@@ -461,11 +572,51 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     #region Відображення
 
+    /// <summary>
+    /// Параметри, які при заглушеному двигуні (RPM = 0) не мають сенсу — ECU видає службові значення
+    /// (впорскування ~30 мс, кут −30°). Їх не показуємо й не рахуємо в MIN/MAX; решта параметрів реальні.
+    /// </summary>
+    private static readonly HashSet<string> RunningOnlyKeys = ["inj", "ign"];
+
+    private static bool IsEngineOff(ObdFrame f) => f.B(4) is not > 0;
+
+    private void AccumulateStats(ObdFrame f)
+    {
+        bool off = IsEngineOff(f);
+        foreach (var p in ParameterDecoder.Decode(f, Settings))
+        {
+            if (p.Key.StartsWith('f') || p.Value is not double v) continue;
+            if (off && RunningOnlyKeys.Contains(p.Key)) continue;
+            if (!_max.TryGetValue(p.Key, out var mx) || v > mx.Value) _max[p.Key] = p;
+            if (!_min.TryGetValue(p.Key, out var mn) || v < mn.Value) _min[p.Key] = p;
+        }
+    }
+
+    private void RecomputeStats()
+    {
+        _min.Clear();
+        _max.Clear();
+        foreach (var f in _rec.Frames) AccumulateStats(f);
+    }
+
+    private void UpdateStatTexts()
+    {
+        foreach (var row in Parameters)
+        {
+            row.MaxText = row.ShowMax && _max.TryGetValue(row.Key, out var mx) ? mx.Text : "";
+            row.MinText = row.ShowMin && _min.TryGetValue(row.Key, out var mn) ? mn.Text : "";
+        }
+    }
+
     private void RebuildParameters()
     {
+        RecomputeStats(); // одиниці/формули могли змінитися разом з налаштуваннями
         var charted = Parameters.Where(p => p.Charted).Select(p => p.Key).ToHashSet();
-        if (charted.Count == 0 && Parameters.Count == 0) charted = ["rpm", "iac", "ect"];
+        if (Parameters.Count == 0) charted = ["rpm", "iac", "ect"];
         Parameters.Clear();
+        Tiles.Clear();
+        Flags.Clear();
+        Analog.Clear();
         var sample = CurrentFrame ?? _rec.Frames.LastOrDefault() ?? new ObdFrame { Bytes = new byte[12] };
         int c = 0;
         foreach (var p in ParameterDecoder.Decode(sample, Settings))
@@ -479,7 +630,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             row.Charted = charted.Contains(p.Key);
             row.ChartedChanged += UpdateChart;
             Parameters.Add(row);
+            if (row.IsFlag) Flags.Add(row); else Analog.Add(row);
         }
+        foreach (var key in TileKeys)
+            if (Parameters.FirstOrDefault(r => r.Key == key) is { } t) Tiles.Add(t);
         ShowFrame();
     }
 
@@ -488,25 +642,80 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var f = CurrentFrame;
         if (f == null)
         {
-            FrameInfo = "Немає даних";
-            IdInfo = HexInfo = "";
-            foreach (var p in Parameters) { p.Text = ""; p.Raw = ""; }
+            FrameNumber = "—";
+            FrameTime = "";
+            FrameMarked = false;
+            EngineOff = false;
+            IdInfo = HexInfo = "—";
+            ByteCount = 0;
+            foreach (var p in Parameters) { p.Text = "—"; p.Raw = ""; p.IsOn = false; p.Fraction = 0; p.Accent = AccentBrush; }
+            UpdateStatTexts();
             UpdateChart();
             return;
         }
         var values = ParameterDecoder.Decode(f, Settings).ToDictionary(p => p.Key);
-        bool needRebuild = values.Keys.Count(k => k.StartsWith('b')) != Parameters.Count(p => p.Key.StartsWith('b')) && ShowHidden;
-        if (needRebuild) { RebuildParameters(); return; }
+        int extraShown = Parameters.Count(p => p.Key.StartsWith('b'));
+        int extraNow = values.Keys.Count(k => k.StartsWith('b'));
+        if (ShowHidden && extraShown != extraNow) { RebuildParameters(); return; }
+
+        EngineOff = IsEngineOff(f);
         foreach (var row in Parameters)
         {
-            if (values.TryGetValue(row.Key, out var v)) { row.Text = v.Text; row.Raw = v.Raw; row.Unit = v.Unit; }
-            else { row.Text = "—"; row.Raw = ""; }
+            if (!values.TryGetValue(row.Key, out var v)) { row.Text = "—"; row.Raw = ""; row.IsOn = false; row.Fraction = 0; continue; }
+            if (EngineOff && RunningOnlyKeys.Contains(row.Key))
+            {
+                row.Text = "—";
+                row.Raw = v.Raw;
+                row.Unit = v.Unit;
+                row.Fraction = 0;
+                continue;
+            }
+            row.Text = v.Text;
+            row.Raw = v.Raw;
+            row.Unit = v.Unit;
+            row.IsOn = row.IsFlag && v.Value == 1;
+            row.Fraction = TileFraction(f, row.Key, v);
+            row.Accent = TileAccent(row.Key, v.Value);
         }
-        FrameInfo = $"Кадр {_currentIndex + 1} / {_rec.Frames.Count}   {f.Time:dd.MM.yyyy HH:mm:ss}" + (f.Marked ? "   ★ мітка" : "");
-        IdInfo = $"ID: {f.IdBitString}  (0x{f.IdValue:X3})";
-        HexInfo = $"Байти ({f.Bytes.Length}): {f.HexDump}";
+        FrameNumber = $"{_currentIndex + 1} / {_rec.Frames.Count}";
+        FrameTime = f.Time.ToString("dd.MM.yyyy  HH:mm:ss.fff");
+        FrameMarked = f.Marked;
+        IdInfo = $"{f.IdBitString}  (0x{f.IdValue:X3})";
+        HexInfo = f.HexDump;
+        ByteCount = f.Bytes.Length;
+        UpdateStatTexts();
         UpdateChart();
     }
+
+    /// <summary>
+    /// Межі шкал на плитках (фізичні одиниці), підібрані під 2JZ-GTE. Ключ — параметр і одиниця,
+    /// бо шкала залежить від режиму датчика. Що тут немає — шкала від сирого байта (0..255).
+    /// </summary>
+    private static readonly Dictionary<(string Key, string Unit), (double Min, double Max)> TileScales = new()
+    {
+        [("rpm", "rpm")] = (0, 8000),
+        [("air", "bar")] = (-1, 1.5),
+        [("ign", "°")] = (-10, 50),
+        [("inj", "ms")] = (0, 20),
+        [("iac", "steps")] = (0, 125), // повний хід ISCV — 125 кроків
+    };
+
+    private static double TileFraction(ObdFrame f, string key, ParamValue v)
+    {
+        if (TileScales.TryGetValue((key, v.Unit), out var sc) && v.Value is double x)
+            return Math.Clamp((x - sc.Min) / (sc.Max - sc.Min), 0, 1);
+        int n = Array.IndexOf(new[] { "inj", "ign", "iac", "rpm", "air", "ect", "tps", "spd" }, key) + 1;
+        return n > 0 && f.B(n) is byte b ? b / 255.0 : 0;
+    }
+
+    private static Brush TileAccent(string key, double? value) => key switch
+    {
+        "ect" when value < 60 => ColdBrush,
+        "ect" when value > 105 => HotBrush,
+        "ect" => OkBrush,
+        "rpm" when value > 6500 => HotBrush,
+        _ => AccentBrush
+    };
 
     private void UpdateChart()
     {
@@ -519,20 +728,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ChartStart = start;
         Chart = keys.Select(k => new ChartSeries
         {
-            Name = k.Name.Trim() + (k.Unit.Length > 0 ? ", " + k.Unit : ""),
+            Name = k.Name + (k.Unit.Length > 0 ? ", " + k.Unit : ""),
             Color = k.Color,
             Values = frames.Select(d => d.TryGetValue(k.Key, out var v) ? v.Value : null).ToArray()
         }).ToList();
         OnPropertyChanged(nameof(ChartCursor));
     }
 
-    public int ChartStart { get; private set; }
-    public int ChartCursor => _currentIndex - ChartStart;
-
     #endregion
+
+    private static Brush Freeze(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
 
     public void Dispose()
     {
+        _linkTimer.Stop();
         _source?.Dispose();
         _edgeLog?.Dispose();
         Settings.Save();

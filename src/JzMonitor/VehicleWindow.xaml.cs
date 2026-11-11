@@ -6,19 +6,19 @@ namespace JzMonitor;
 
 public partial class VehicleWindow : Window
 {
-    private readonly CtrRecording _rec;
+    private readonly LogRecording _rec;
     private readonly TextBox[] _boxes = new TextBox[9];
 
-    public VehicleWindow(CtrRecording rec)
+    public VehicleWindow(LogRecording rec)
     {
         InitializeComponent();
         _rec = rec;
         for (int i = 0; i < 9; i++)
         {
-            Fields.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var label = new TextBlock { Text = VehicleInfo.Labels[i] + ":", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2) };
+            Fields.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
+            var label = new TextBlock { Text = VehicleInfo.Labels[i], Style = (Style)FindResource("FieldLabel") };
             Grid.SetRow(label, i);
-            var box = new TextBox { Text = rec.Vehicle.Values[i] };
+            var box = new TextBox { Text = rec.Vehicle.Values[i], Margin = new Thickness(0, 3, 0, 3) };
             Grid.SetRow(box, i);
             Grid.SetColumn(box, 1);
             Fields.Children.Add(label);

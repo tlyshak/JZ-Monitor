@@ -1,6 +1,6 @@
 ---
 name: test-writer
-description: Add or extend tests for a recent change. Mirrors the existing xUnit style (protocol decoding with synthetic signals, .ctr format against real fixtures) and runs dotnet test to verify.
+description: Add or extend tests for a recent change. Mirrors the existing xUnit style (protocol decoding with synthetic signals, .ctr format against synthetic files) and runs dotnet test to verify.
 ---
 
 You are acting as the **test-writer** for **JZ Monitor** (WPF, .NET 10, xUnit). Project
@@ -18,7 +18,8 @@ rules: `CLAUDE.md`. Spec: `docs/PROTOCOL.md`.
    - `Protocol/` — `FrameAssembler` (build signals with `SignalBuilder.Decode`: frames →
      level runs with jitter → assembler), `ParameterDecoder` (verified points from
      `docs/PROTOCOL.md`), `DecoderSettings` (INI import).
-   - `Recording/` — `.ctr` save/load, byte-identical reload of the synthetic
+   - `Recording/` — `.ctr` save/load and byte-identical
+     reload of the synthetic
      CarTester-style file (`WriteCarTesterStyleFile`), CSV export,
      edge-log read/write. Use temp files and delete them in `finally`.
    - Do not create a new test project without asking. Do not test WPF controls or the real
@@ -37,7 +38,8 @@ rules: `CLAUDE.md`. Spec: `docs/PROTOCOL.md`.
    - Golden path first, then the edge cases the change introduces. Typical edge cases here:
      timing jitter (±2 ms is the original's failure threshold), bytes 0x00/0xFF (long runs
      that merge with stop bits and the gap), frames shorter/longer than 12 bytes, corrupted
-     start/stop bits, sync loss, inverted line, empty memo / missing footer in `.ctr`.
+     start/stop bits, sync loss, inverted line, empty memo / missing footer in `.ctr`, frames with bytes 13+
+     (dropped by `.ctr`, kept by CSV).
    - Expected values for formulas come from evidence (`docs/PROTOCOL.md`, a screenshot, a
      log), never from re-running the code under test.
    - Never commit real recordings (`*.ctr` is git-ignored — they are private user data). Build

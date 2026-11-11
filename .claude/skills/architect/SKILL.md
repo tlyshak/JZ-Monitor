@@ -35,8 +35,8 @@ what is verified and what is not) before planning.
      one-line intent per file. Include `docs/PROTOCOL.md` when protocol knowledge changes.
    - **Protocol & format impact** — what changes in decoding (bits, frame layout, formulas,
      keys), in the `.ctr` writer/reader, in CSV export, in `JzMonitor.settings.json`.
-     State whether `.ctr` stays byte-compatible with CarTester 1.0.0.3 and whether existing
-     files still load. Write "none" if untouched.
+     State whether `.ctr` stays byte-compatible with CarTester 1.0.0.3 and existing files
+     still load. Write "none" if untouched.
    - **Evidence** — for every protocol claim: its source (disassembly address, screenshot,
      log file + frames, live capture) or "unverified".
    - **Acceptance criteria** — a checklist of verifiable statements in the form
@@ -47,7 +47,7 @@ what is verified and what is not) before planning.
    - **Test strategy** — what to cover in `tests/JzMonitor.Tests`:
      - `Protocol/` — `FrameAssembler` via `SignalBuilder` (synthetic runs with jitter),
        `ParameterDecoder` against verified points;
-     - `Recording/` — `.ctr` round trip, byte-identical reload of the real fixture, CSV;
+     - `Recording/` — `.ctr` round trip and byte-identical load → save, CSV;
      - what cannot be automated (real COM port, real car, WPF visuals) and how it is checked
        instead.
      Name the golden path and the edge cases this change introduces, and what is deliberately
@@ -59,18 +59,19 @@ what is verified and what is not) before planning.
        has tests; if not, the plan adds characterization tests **before** the functional change.
    - **QA (manual test steps)** — **mandatory**: a numbered checklist to verify the change by
      hand without reading code, e.g. "1. `dotnet run --project src/JzMonitor`. 2. Press
-     **Демо**. Expected: the green indicator lights within 3 s, rpm oscillates 500–1000.
-     3. Файл → Відкрити `../Chaser logs/.../08_11_cold start.ctr`. Expected: 781 frames."
+     **Open** `../Chaser logs/.../09_11_2026_cold_start_and_drive.ctr`. Expected: 1931 frames,
+     rpm MAX 2750, no status pill (it appears only while reading the port).
+     3. Connect on the car (cable + ignition on). Expected: LIVE within ~3 s."
      Mark steps that need the real car + cable separately. Self-contained —
      `/orchestrator` reproduces it verbatim.
    - **Review focus** — the 1–4 checks most critical for *this* change, from a fixed
      vocabulary: `protocol fidelity`, `formulas & units`, `.ctr compatibility`,
      `frame sync & timing`, `threading & dispatcher`, `Win32 interop & handles`,
      `MVVM & bindings`, `settings persistence`, `null-safety`, `resource disposal`,
-     `test isolation`, `UI text (uk)`. `/reviewer` starts with these.
+     `test isolation`, `UI design & text`. `/reviewer` starts with these.
    - **Performance & quality** — work on the reader thread, allocations per edge/frame,
      chart redraw cost with thousands of frames, UI responsiveness when loading large
-     `.ctr`. If nothing is performance-relevant, write "none" explicitly.
+     recordings. If nothing is performance-relevant, write "none" explicitly.
    - **Risks** — what could go wrong, what to watch for.
    - **Open questions** — anything the user needs to decide before `/coder` runs.
    - **Review findings** — leave this section empty with the header and a note
@@ -95,7 +96,7 @@ docs/plans/<slug>/<slug>-plan.md
 - No dates, ticket numbers or author names in the slug.
 - If a plan already exists with the same slug, append a short qualifier (`-v2`) rather than overwriting.
 
-Examples: `add-id-validation`, `add-auto-bit-time`, `fix-gap-detection`, `add-ctr-compare-view`.
+Examples: `add-id-validation`, `add-auto-bit-time`, `fix-gap-detection`, `add-log-compare-view`.
 
 ### Supporting files
 
@@ -108,7 +109,7 @@ docs/plans/<slug>/
 
 Every supporting file must be linked from `<slug>-plan.md`. Do not create an empty subfolder.
 Link source files with repo-relative paths (`src/JzMonitor/Protocol/FrameAssembler.cs`);
-never paste absolute Windows paths. Never copy whole `.ctr` user logs into the plan folder —
+never paste absolute Windows paths. Never copy `.ctr` user logs into the plan folder —
 reference them by name.
 
 ## Designing for quality
@@ -120,8 +121,10 @@ When choosing the Recommended approach, weigh these and record the outcome in th
 - **Fidelity vs. improvement.** Reproduce CarTester's behavior where it is correct; where it
   loses data (bytes after the 12th, hidden bits) show more, but never silently change a
   verified formula. New interpretations are opt-in or clearly labelled.
-- **Format compatibility.** `.ctr` is the native format and must stay readable by the
-  original CarTester; anything extra goes elsewhere (CSV, sidecar file).
+- **Format compatibility.** `.ctr` is the only recording format and must stay readable by the
+  original CarTester; anything it cannot hold goes to CSV export.
+- **Design.** Light theme from `Themes/Light.xaml`; English UI labels; DSR is the only input
+  line; no V6 right-bank data.
 - **Reader thread.** Keep it minimal: timestamp, level, push to the assembler. Everything
   else on the UI thread or a background task.
 - **No premature abstraction.** No DI container, no MVVM framework, no plugin system unless

@@ -6,7 +6,7 @@ tools: Read, Grep, Glob, Bash, TodoWrite, Skill
 
 You are the **orchestrator** subagent for **JZ Monitor** — a WPF (.NET 10) replacement for the
 CarTester Toyota OBD-1 data-stream reader. Project rules live in `CLAUDE.md`; the spec is
-`docs/PROTOCOL.md` (reverse-engineered protocol, formulas and `.ctr` format).
+`docs/PROTOCOL.md` (reverse-engineered protocol, formulas and the `.ctr` format).
 
 This subagent holds **no orchestration logic of its own**. The single source of truth for
 the pipeline — preconditions, state ledger, the fixed step order, build verification,

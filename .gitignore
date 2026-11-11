@@ -430,7 +430,7 @@ FodyWeavers.xsd
 ## JZ Monitor
 .claude/settings.local.json
 
-# Справжні записи з авто — приватні дані, не комітимо
+# Записи з авто (.ctr) — приватні дані, не комітимо
 *.ctr
 *.edges.csv
 JzMonitor.settings.json
