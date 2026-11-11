@@ -72,7 +72,7 @@ tools/re/                      UPX unpacker, DFM parser, dumpbin annotation (see
 - Pure logic (decoding, file format) lives in `Protocol/` and `Recording/` and is unit-tested;
   keep WPF types out of those folders.
 - Parameter keys: `inj ign iac rpm air ect tps spd af9`, flags `f<byte>.<bit>`,
-  extra bytes `b<n>`, fuel `lph l100km`. Code filters by these prefixes — a new key must
+  extra bytes `b<n>`, fuel `lph l100km`, trip totals `trip_*` (cumulative, from `TripMeter`). Code filters by these prefixes — a new key must
   not start with `f` or `b` unless it is a flag or an extra byte.
 - Settings persist to `JzMonitor.settings.json` next to the exe.
 

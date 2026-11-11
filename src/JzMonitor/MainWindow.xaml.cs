@@ -15,6 +15,7 @@ public partial class MainWindow : Window
         _vm = new MainViewModel();
         DataContext = _vm;
         Chart.PointClicked += i => _vm.CurrentIndex = _vm.ChartStart + i;
+        Chart.Stepped += d => _vm.CurrentIndex += d;
         // JzMonitor.exe file.ctr — відкрити запис одразу
         var args = Environment.GetCommandLineArgs();
         if (args.Length > 1 && File.Exists(args[1])) Loaded += (_, _) => _vm.OpenFile(args[1]);

@@ -70,6 +70,36 @@ public class ParameterDecoderTests
     }
 
     [Fact]
+    public void Decode_Speed_DividedByCalibration()
+    {
+        var bytes = new byte[12];
+        bytes[7] = 170;
+
+        Assert.Equal("50", Decode(bytes, new DecoderSettings { SpeedDivisor = 3.4 })["spd"].Text);
+        Assert.Equal("170", Decode(bytes, new DecoderSettings { SpeedDivisor = 1 })["spd"].Text); // як CarTester
+    }
+
+    [Fact]
+    public void TripMeter_IntegratesFuelDistanceAndEngineTime_SkipsGaps()
+    {
+        var s = new DecoderSettings { InjectorFlowCcMin = 440, InjectorCount = 6, InjectionRate = 1, SpeedDivisor = 3.4 };
+        // 3.0 мс, 1500 об/хв → 3.0×1500×440×6×5e-7 = 5.94 л/год; байт швидкості 204 → 60 км/год
+        byte[] running = [24, 85, 40, 60, 35, 200, 0, 204, 0, 0, 0, 0];
+        var t0 = new DateTime(2026, 1, 1, 10, 0, 0);
+        var trip = new TripMeter();
+        for (int i = 0; i <= 3600; i++)                               // година їзди, кадр щосекунди
+            trip.Add(new ObdFrame { Time = t0.AddSeconds(i), Bytes = running }, s);
+        trip.Add(new ObdFrame { Time = t0.AddSeconds(3600 + 60), Bytes = running }, s); // пауза 60 с — не рахується
+
+        var hour = trip.At(3600);
+        Assert.Equal(5.94, hour.FuelL, 6);
+        Assert.Equal(60, hour.DistanceKm, 6);
+        Assert.Equal(3600, hour.EngineSeconds, 6);
+        Assert.Equal(9.9, hour.AverageL100!.Value, 6);
+        Assert.Equal(hour, trip.At(3601));                             // після паузи нічого не додалось
+    }
+
+    [Fact]
     public void Decode_V6RightBank_NotDecoded()
     {
         var d = Decode([0, 0, 0, 0, 0, 0, 0, 0, 128, 77, 0, 0]);

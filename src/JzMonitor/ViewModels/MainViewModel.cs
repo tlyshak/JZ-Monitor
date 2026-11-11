@@ -44,11 +44,15 @@ public sealed class ParamRow : ObservableObject
     /// <summary>Мінімум за сесію (поточний запис).</summary>
     public string MinText { get => _minText; set => Set(ref _minText, value); }
     /// <summary>Які статистики показувати для цього параметра.</summary>
-    public bool ShowMin => !IsFlag && MinKeys.Contains(Key);
-    public bool ShowMax => !IsFlag && !NoMaxKeys.Contains(Key);
+    public bool ShowMin => !IsFlag && !IsTrip && MinKeys.Contains(Key);
+    public bool ShowMax => !IsFlag && !IsTrip && !NoMaxKeys.Contains(Key);
+    /// <summary>Підсумок поїздки (накопичувальне значення, не з кадру).</summary>
+    public bool IsTrip => Key.StartsWith("trip_");
+    public bool Chartable => !IsTrip;
 
     private static readonly HashSet<string> MinKeys = ["inj", "ign", "iac"];
-    private static readonly HashSet<string> NoMaxKeys = ["iac"];
+    // ISCV — лише MIN; витрата на 100 км біля нуля швидкості дає абсурдні числа — без MAX
+    private static readonly HashSet<string> NoMaxKeys = ["iac", "l100km"];
     /// <summary>Колір шкали/значення на плитці.</summary>
     public Brush Accent { get => _accent; set => Set(ref _accent, value); }
     public Color Color { get; set; }
@@ -86,6 +90,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private int _okFrames, _badFrames;
     /// <summary>Мінімуми й максимуми параметрів за поточний запис (лише кадри з працюючим двигуном).</summary>
     private readonly Dictionary<string, ParamValue> _min = new(), _max = new();
+    /// <summary>Витрата палива, відстань і час за поїздку (поточний запис).</summary>
+    private readonly TripMeter _trip = new();
 
     public DecoderSettings Settings { get; }
     public ObservableCollection<string> Ports { get; } = new();
@@ -178,6 +184,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public int InjectorFlowCcMin { get => Settings.InjectorFlowCcMin; set { Settings.InjectorFlowCcMin = value; SettingsChanged(); } }
     public int InjectorCount { get => Settings.InjectorCount; set { Settings.InjectorCount = value; SettingsChanged(); } }
     public int InjectionRate { get => Settings.InjectionRate; set { Settings.InjectionRate = value; SettingsChanged(); } }
+    public double SpeedDivisor { get => Settings.SpeedDivisor; set { if (value > 0) { Settings.SpeedDivisor = value; SettingsChanged(); } } }
     public double BitTimeMs { get => Settings.BitTimeMs; set { Settings.BitTimeMs = value; SettingsChanged(); } }
     public int GapBits { get => Settings.GapBits; set { Settings.GapBits = value; SettingsChanged(); } }
     public int MinDataBytes { get => Settings.MinDataBytes; set { Settings.MinDataBytes = value; SettingsChanged(); } }
@@ -258,8 +265,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Зростає при зміні налаштувань — графік перебудовується з новими одиницями.</summary>
+    private int _settingsVersion;
+
     private void SettingsChanged()
     {
+        _settingsVersion++;
         Settings.Save();
         ApplyAssemblerSettings();
         RebuildParameters();
@@ -373,7 +384,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             MarkDirty();
             OnPropertyChanged(nameof(MaxIndex));
             if (Follow) { _currentIndex = _rec.Frames.Count - 1; OnPropertyChanged(nameof(CurrentIndex)); ShowFrame(); }
-            else { UpdateStatTexts(); UpdateChart(); }
+            else { UpdateStatTexts(); ShowTrip(); UpdateChart(); }
         });
     }
 
@@ -435,6 +446,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void AfterLoad()
     {
+        _chartSig = null;
+        ChartStart = 0;
         OnPropertyChanged(nameof(MaxIndex));
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(VehicleSummary));
@@ -497,8 +510,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         var vehicle = _rec.Vehicle;
         _rec = new LogRecording { Vehicle = vehicle };
+        _chartSig = null;
+        ChartStart = 0;
         _min.Clear();
         _max.Clear();
+        _trip.Reset();
         _dirty = false;
         _currentIndex = -1;
         OnPropertyChanged(nameof(CurrentIndex));
@@ -560,6 +576,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (CurrentFrame is not { } f) return;
         _rec.Frames.Remove(f);
+        _chartSig = null;
         RecomputeStats();
         MarkDirty();
         OnPropertyChanged(nameof(MaxIndex));
@@ -582,6 +599,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void AccumulateStats(ObdFrame f)
     {
+        _trip.Add(f, Settings);
         bool off = IsEngineOff(f);
         foreach (var p in ParameterDecoder.Decode(f, Settings))
         {
@@ -596,6 +614,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         _min.Clear();
         _max.Clear();
+        _trip.Reset();
         foreach (var f in _rec.Frames) AccumulateStats(f);
     }
 
@@ -632,9 +651,40 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Parameters.Add(row);
             if (row.IsFlag) Flags.Add(row); else Analog.Add(row);
         }
+        foreach (var (key, name, unit) in TripRows)
+        {
+            var row = new ParamRow { Key = key, Name = name, Unit = unit };
+            Parameters.Add(row);
+            Analog.Add(row);
+        }
         foreach (var key in TileKeys)
             if (Parameters.FirstOrDefault(r => r.Key == key) is { } t) Tiles.Add(t);
         ShowFrame();
+    }
+
+    private static readonly (string Key, string Name, string Unit)[] TripRows =
+    [
+        ("trip_fuel", "Trip fuel used", "L"),
+        ("trip_dist", "Trip distance", "km"),
+        ("trip_avg", "Trip average", "L/100km"),
+        ("trip_time", "Trip engine time", ""),
+    ];
+
+    private void ShowTrip()
+    {
+        var t = _trip.At(_currentIndex);
+        bool any = _currentIndex >= 0;
+        foreach (var row in Parameters.Where(r => r.IsTrip))
+        {
+            row.Text = !any ? "—" : row.Key switch
+            {
+                "trip_fuel" => t.FuelL.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+                "trip_dist" => t.DistanceKm.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+                "trip_avg" => t.AverageL100 is double a ? a.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : "—",
+                _ => TimeSpan.FromSeconds(t.EngineSeconds).ToString(t.EngineSeconds >= 3600 ? @"h\:mm\:ss" : @"m\:ss")
+            };
+            row.Raw = "";
+        }
     }
 
     private void ShowFrame()
@@ -661,6 +711,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         EngineOff = IsEngineOff(f);
         foreach (var row in Parameters)
         {
+            if (row.IsTrip) continue;
             if (!values.TryGetValue(row.Key, out var v)) { row.Text = "—"; row.Raw = ""; row.IsOn = false; row.Fraction = 0; continue; }
             if (EngineOff && RunningOnlyKeys.Contains(row.Key))
             {
@@ -677,6 +728,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             row.Fraction = TileFraction(f, row.Key, v);
             row.Accent = TileAccent(row.Key, v.Value);
         }
+        ShowTrip();
         FrameNumber = $"{_currentIndex + 1} / {_rec.Frames.Count}";
         FrameTime = f.Time.ToString("dd.MM.yyyy  HH:mm:ss.fff");
         FrameMarked = f.Marked;
@@ -717,20 +769,50 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _ => AccentBrush
     };
 
+    /// <summary>Скільки кадрів показує графік одночасно (для швидкодії).</summary>
+    private const int ChartWindow = 600;
+    /// <summary>Підпис побудованих серій: якщо не змінився — перебудова не потрібна, рухається лише курсор.</summary>
+    private string? _chartSig;
+
     private void UpdateChart()
     {
         var keys = Parameters.Where(p => p.Charted).ToList();
-        if (keys.Count == 0 || _rec.Frames.Count == 0) { Chart = null; return; }
-        // для швидкодії — не більше 600 точок навколо поточного кадру
-        int end = Math.Clamp(_currentIndex + 300, Math.Min(600, _rec.Frames.Count), _rec.Frames.Count);
-        int start = Math.Max(0, end - 600);
+        int n = _rec.Frames.Count;
+        if (keys.Count == 0 || n == 0) { Chart = null; _chartSig = null; return; }
+
+        // Вікно стоїть на місці, доки поточний кадр у його межах, — інакше під час перетягування
+        // мишею дані «їхали б» під курсором. Під час живого читання — останні кадри справа.
+        int start = ChartStart;
+        if (n <= ChartWindow) start = 0;
+        else if (IsRunning && Follow) start = n - ChartWindow;
+        else
+        {
+            // Мінімальний зсув: вікно «підтягується» рівно настільки, щоб поточний кадр був видимим —
+            // так прокрутка плавна, без перескоку на пів вікна.
+            if (_currentIndex < start) start = _currentIndex;
+            else if (_currentIndex >= start + ChartWindow) start = _currentIndex - ChartWindow + 1;
+            start = Math.Clamp(start, 0, n - ChartWindow);
+        }
+        int end = Math.Min(n, start + ChartWindow);
+
+        string sig = $"{start}:{end}:{_settingsVersion}:{string.Join(",", keys.Select(k => k.Key))}";
+        if (sig == _chartSig && Chart != null) { OnPropertyChanged(nameof(ChartCursor)); return; }
+        _chartSig = sig;
+
         var frames = _rec.Frames.Skip(start).Take(end - start).Select(f => ParameterDecoder.Decode(f, Settings).ToDictionary(p => p.Key)).ToList();
         ChartStart = start;
         Chart = keys.Select(k => new ChartSeries
         {
-            Name = k.Name + (k.Unit.Length > 0 ? ", " + k.Unit : ""),
+            Name = k.Name,
+            // одиницю, що дублює назву (RPM / rpm), не показуємо
+            Unit = k.Unit.Equals(k.Name, StringComparison.OrdinalIgnoreCase) ? "" : k.Unit,
             Color = k.Color,
-            Values = frames.Select(d => d.TryGetValue(k.Key, out var v) ? v.Value : null).ToArray()
+            // Стала шкала — MIN/MAX усього запису: під час прокрутки лінії не стрибають по вертикалі
+            Min = _min.TryGetValue(k.Key, out var mn) ? mn.Value : null,
+            Max = _max.TryGetValue(k.Key, out var mx) ? mx.Value : null,
+            // Впорскування й кут при заглушеному двигуні не мають сенсу — розрив лінії
+            Values = frames.Select(d => d.TryGetValue(k.Key, out var v)
+                && !(RunningOnlyKeys.Contains(k.Key) && d.TryGetValue("rpm", out var r) && r.Value == 0) ? v.Value : null).ToArray()
         }).ToList();
         OnPropertyChanged(nameof(ChartCursor));
     }

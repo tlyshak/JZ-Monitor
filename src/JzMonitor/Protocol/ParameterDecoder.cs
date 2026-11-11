@@ -69,7 +69,7 @@ public static class ParameterDecoder
             case ThrottleMode.Percent: Add("tps", "Throttle", f.B(7), b => b / 1.8, "%", "0.0"); break;
             default: Add("tps", "Throttle", f.B(7), b => b, "raw", "0"); break;
         }
-        Add("spd", "Vehicle speed", f.B(8), b => b, "km/h", "0");
+        Add("spd", "Vehicle speed", f.B(8), b => b / SpeedDivisor(s), "km/h", "0");
         switch (s.Af)
         {
             case AfMode.Volts: Add("af9", "Target A/F", f.B(9), b => b * 5 / 256.0, "V", "0.00"); break;
@@ -85,17 +85,12 @@ public static class ParameterDecoder
                 on ? fl.OnText : fl.OffText, "", on ? "1" : "0", fl.Hidden));
         }
 
-        // Витрата палива (оцінка, як в оригіналі; без затримки відкриття форсунок):
-        //   л/год = t_впорск(мс) × об/хв × cc/min × к-сть × впорсків_за_2_оберти × 5e-7
-        //   = B1 × B4 × cc/min × к-сть × впорсків × 1.5625e-6   (B1×0.125 мс, B4×25 об/хв)
-        // Збігається з CarTester (B1 × B4 × PrFors × KolFors × ChastFors × 6.25e-6) при PrFors = cc/min ÷ 4.
-        if (f.B(1) is byte inj && f.B(4) is byte rpm)
+        if (FuelLph(f, s) is double lh)
         {
-            double lh = inj * rpm * (double)s.InjectorFlowCcMin * s.InjectorCount * s.InjectionRate * 1.5625e-6;
             list.Add(new ParamValue("lph", "Fuel flow", lh, lh.ToString("0.00", Ci), "L/h", ""));
-            if (f.B(8) is byte spd && spd > 0)
+            if (SpeedKmh(f, s) is double kmh && kmh > 0)
             {
-                double l100 = lh * 100 / spd;
+                double l100 = lh * 100 / kmh;
                 list.Add(new ParamValue("l100km", "Fuel economy", l100, l100.ToString("0.0", Ci), "L/100km", ""));
             }
             else list.Add(new ParamValue("l100km", "Fuel economy", null, "—", "L/100km", ""));
@@ -117,6 +112,22 @@ public static class ParameterDecoder
             list.Add(new ParamValue(key, name, v, v.ToString(fmt, Ci), unit, $"{b} · 0x{b:X2}"));
         }
     }
+
+    private static double SpeedDivisor(DecoderSettings s) => s.SpeedDivisor > 0 ? s.SpeedDivisor : 1;
+
+    /// <summary>Швидкість, км/год (байт 8 ÷ калібрувальний коефіцієнт).</summary>
+    public static double? SpeedKmh(ObdFrame f, DecoderSettings s) => f.B(8) is byte b ? b / SpeedDivisor(s) : null;
+
+    /// <summary>
+    /// Витрата палива, л/год (оцінка, як в оригіналі; без затримки відкриття форсунок):
+    ///   л/год = t_впорск(мс) × об/хв × cc/min × к-сть × впорсків_за_2_оберти × 5e-7
+    ///   = B1 × B4 × cc/min × к-сть × впорсків × 1.5625e-6   (B1×0.125 мс, B4×25 об/хв).
+    /// Збігається з CarTester (B1 × B4 × PrFors × KolFors × ChastFors × 6.25e-6) при PrFors = cc/min ÷ 4.
+    /// </summary>
+    public static double? FuelLph(ObdFrame f, DecoderSettings s) =>
+        f.B(1) is byte inj && f.B(4) is byte rpm
+            ? inj * rpm * (double)s.InjectorFlowCcMin * s.InjectorCount * s.InjectionRate * 1.5625e-6
+            : null;
 
     /// <summary>Кусково-лінійна характеристика датчика температури ОР (10 відрізків, як в оригіналі).</summary>
     public static double Coolant(int raw, bool direct)

@@ -33,6 +33,13 @@ public sealed class DecoderSettings
     /// <summary>Частота впорскування (ChastFors).</summary>
     public int InjectionRate { get; set; } = 1;
 
+    /// <summary>
+    /// Калібрування швидкості: км/год = байт 8 ÷ SpeedDivisor. CarTester показує байт як є (÷1).
+    /// 3.4 — підібрано власником по реальній швидкості на еталонному Chaser (свап 2JZ-GTE: ECU
+    /// розрахований на інший датчик швидкості).
+    /// </summary>
+    public double SpeedDivisor { get; set; } = 3.4;
+
     // Параметри лінії / протоколу
     public string? Port { get; set; }
     public bool Invert { get; set; }

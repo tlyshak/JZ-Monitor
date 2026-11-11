@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace JzMonitor.Controls;
@@ -7,8 +8,13 @@ namespace JzMonitor.Controls;
 public sealed class ChartSeries
 {
     public required string Name { get; init; }
+    /// <summary>Одиниця для легенди; порожня — не показувати.</summary>
+    public string Unit { get; init; } = "";
     public required Color Color { get; init; }
     public required double?[] Values { get; init; }
+    /// <summary>Стала вертикальна шкала (наприклад, MIN/MAX усього запису). Якщо не задана — за видимими точками.</summary>
+    public double? Min { get; init; }
+    public double? Max { get; init; }
 }
 
 /// <summary>Простий багатосерійний графік: кожна серія масштабується у власному діапазоні.</summary>
@@ -34,7 +40,22 @@ public sealed class ChartControl : FrameworkElement
         set => SetValue(CursorIndexProperty, value);
     }
 
+    /// <summary>Мишею вибрано точку (індекс у вікні графіка; може виходити за межі — тоді прокрутка).</summary>
     public event Action<int>? PointClicked;
+    /// <summary>Крок навігації з коліщатка/клавіатури, у кадрах.</summary>
+    public event Action<int>? Stepped;
+
+    // Автопрокрутка, коли під час перетягування миша за лівим/правим краєм графіка
+    private readonly System.Windows.Threading.DispatcherTimer _edgeTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    private int _edgeStep;
+
+    public ChartControl()
+    {
+        Focusable = true;
+        FocusVisualStyle = null;
+        Cursor = Cursors.SizeWE;
+        _edgeTimer.Tick += (_, _) => { if (_edgeStep != 0) Stepped?.Invoke(_edgeStep); };
+    }
 
     private static readonly Typeface Face = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
     private static readonly Brush Back = Frozen(new SolidColorBrush(Color.FromRgb(0xFB, 0xFC, 0xFD)));
@@ -55,12 +76,14 @@ public sealed class ChartControl : FrameworkElement
         {
             var vals = s.Values.Where(v => v.HasValue).Select(v => v!.Value).ToList();
             if (vals.Count == 0) continue;
-            double min = vals.Min(), max = vals.Max();
+            double min = s.Min ?? vals.Min(), max = s.Max ?? vals.Max();
             var brush = new SolidColorBrush(s.Color);
             brush.Freeze();
             string cur = CursorIndex >= 0 && CursorIndex < s.Values.Length && s.Values[CursorIndex] is double cv
-                ? cv.ToString("0.##", CultureInfo.InvariantCulture) : "—";
-            legend.Add((Text($"{s.Name}  {cur}   ({min:0.#} … {max:0.#})", brush, 11.5), brush, min, max));
+                ? cv.ToString("0.#", CultureInfo.InvariantCulture) : "—";
+            // Коротко: «назва значення одиниця» (шкала стала, тож діапазон не потрібен)
+            string label = s.Unit.Length > 0 ? $"{s.Name}  {cur} {s.Unit}" : $"{s.Name}  {cur}";
+            legend.Add((Text(label, brush, 11.5), brush, min, max));
         }
         double legendH = 0;
         var legendPos = new List<Point>();
@@ -106,7 +129,7 @@ public sealed class ChartControl : FrameworkElement
             if (!s.Values.Any(v => v.HasValue)) continue;
             var (_, brush, min, max) = legend[li++];
             if (max - min < 1e-9) { min -= 1; max += 1; }
-            double Y(double v) => bottom - (v - min) / (max - min) * (bottom - top);
+            double Y(double v) => bottom - (Math.Clamp(v, min, max) - min) / (max - min) * (bottom - top);
 
             var geo = new StreamGeometry();
             using (var ctx = geo.Open())
@@ -131,13 +154,80 @@ public sealed class ChartControl : FrameworkElement
         }
     }
 
-    protected override void OnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)
+    // Натиснути й тягнути — курсор іде за мишею; за краєм графіка — прокрутка далі по запису
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        Focus();
+        CaptureMouse();
+        SeekTo(e.GetPosition(this).X);
+        e.Handled = true;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (IsMouseCaptured) SeekTo(e.GetPosition(this).X);
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+        if (IsMouseCaptured) ReleaseMouseCapture();
+    }
+
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        StopEdgeScroll();
+    }
+
+    private void StopEdgeScroll()
+    {
+        _edgeStep = 0;
+        _edgeTimer.Stop();
+    }
+
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        int step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 10 : 1;
+        Stepped?.Invoke(e.Delta < 0 ? step : -step);
+        e.Handled = true;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        int? step = e.Key switch
+        {
+            Key.Left => -1,
+            Key.Right => 1,
+            Key.PageUp => -50,
+            Key.PageDown => 50,
+            Key.Home => -1_000_000,
+            Key.End => 1_000_000,
+            _ => null
+        };
+        if (step is int s) { Stepped?.Invoke(s); e.Handled = true; }
+    }
+
+    private void SeekTo(double x)
+    {
         int n = Series?.Count > 0 ? Series.Max(s => s.Values.Length) : 0;
-        if (n < 2) return;
-        int idx = (int)Math.Round(e.GetPosition(this).X / (ActualWidth - 1) * (n - 1));
-        PointClicked?.Invoke(Math.Clamp(idx, 0, n - 1));
+        double w = ActualWidth;
+        if (n < 2 || w < 2) return;
+
+        // За краєм — плавна автопрокрутка: швидкість росте з відстанню (1 кадр на кожні 25 px, до 25 за тік ≈ 25…600 кадрів/с)
+        double over = x < 0 ? x : x > w - 1 ? x - (w - 1) : 0;
+        if (over != 0)
+        {
+            _edgeStep = Math.Sign(over) * Math.Clamp((int)(Math.Abs(over) / 25) + 1, 1, 25);
+            if (!_edgeTimer.IsEnabled) { Stepped?.Invoke(_edgeStep); _edgeTimer.Start(); }
+            return;
+        }
+        StopEdgeScroll();
+        PointClicked?.Invoke((int)Math.Round(x / (w - 1) * (n - 1)));
     }
 
     private FormattedText Text(string s, Brush b, double size) =>

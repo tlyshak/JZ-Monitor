@@ -92,19 +92,20 @@
 
         <!-- Рядок таблиці параметрів (дві колонки) -->
         <DataTemplate x:Key="ParamTemplate">
-            <Border x:Name="Row" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="4,0" Height="30" Margin="0,0,16,0"
+            <Border x:Name="Row" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="4,0" Height="27" Margin="0,0,16,0"
                     Background="Transparent">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="26"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="60"/>
-                        <ColumnDefinition Width="52"/>
+                        <ColumnDefinition Width="62"/>
                         <ColumnDefinition Width="58"/>
                         <ColumnDefinition Width="58"/>
                     </Grid.ColumnDefinitions>
                     <CheckBox Style="{StaticResource BoxCheck}" Tag="{Binding ColorBrush}" VerticalAlignment="Center"
-                              IsChecked="{Binding Charted}" ToolTip="Show on chart"/>
+                              IsChecked="{Binding Charted}" ToolTip="Show on chart"
+                              Visibility="{Binding Chartable, Converter={StaticResource BoolToVis}}"/>
                     <TextBlock x:Name="Name" Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                     <TextBlock Grid.Column="2" Text="{Binding Text}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"
                                ToolTip="{Binding Raw, StringFormat='raw {0}'}"/>
@@ -322,7 +323,7 @@
                             <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,-16,2">
                                 <Grid Margin="0,0,16,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="60"/><ColumnDefinition Width="52"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/>
+                                        <ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="60"/><ColumnDefinition Width="62"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="1" Text="PARAMETER" Style="{StaticResource Caption}" FontSize="10"/>
                                     <TextBlock Grid.Column="2" Text="NOW" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
@@ -331,7 +332,7 @@
                                 </Grid>
                                 <Grid Margin="0,0,16,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="60"/><ColumnDefinition Width="52"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/>
+                                        <ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="60"/><ColumnDefinition Width="62"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="1" Text="PARAMETER" Style="{StaticResource Caption}" FontSize="10"/>
                                     <TextBlock Grid.Column="2" Text="NOW" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
@@ -428,8 +429,14 @@
                                         <TextBlock Text="Approximate: injector dead time is not taken into account." Style="{StaticResource Caption}"
                                                    FontWeight="Normal" FontSize="11" Margin="0,0,0,14"/>
 
-                                        <TextBlock Text="DISPLAY" Style="{StaticResource SectionTitle}"/>
-                                        <CheckBox Content="Show data hidden by CarTester" IsChecked="{Binding ShowHidden}" Margin="0,0,0,14"/>
+                                        <TextBlock Text="SPEED" Style="{StaticResource SectionTitle}"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14"
+                                                    ToolTip="Vehicle speed = raw byte ÷ this value. CarTester shows the raw byte (÷1); 3.4 matches the real speed on the reference Chaser">
+                                            <TextBlock Text="Speed ÷" Style="{StaticResource FieldLabel}"/>
+                                            <TextBox Text="{Binding SpeedDivisor}" Width="70"/>
+                                            <TextBlock Text="raw byte ÷ value = km/h" Style="{StaticResource Caption}" FontWeight="Normal" FontSize="11" Margin="10,0,0,0"/>
+                                        </StackPanel>
+
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="2">
@@ -450,6 +457,7 @@
                                         </UniformGrid>
 
                                         <TextBlock Text="TOOLS" Style="{StaticResource SectionTitle}"/>
+                                        <CheckBox Content="Show data hidden by CarTester" IsChecked="{Binding ShowHidden}" Margin="0,0,0,4"/>
                                         <CheckBox Content="Log raw edges to file" IsChecked="{Binding RecordEdges}" Margin="0,0,0,8"
                                                   ToolTip="Saves every signal level duration while reading, for protocol research"/>
                                         <WrapPanel>
