@@ -1,0 +1,11 @@
+# Нормалізація кінців рядків: у репозиторії — LF
+* text=auto
+
+# Shell-скрипти мають лишатися з LF, інакше bash падає на \r
+*.sh text eol=lf
+
+# Python-скрипти tools/re запускаються і з Git Bash
+*.py text eol=lf
+
+# Файли CarTester — завжди CRLF + cp1251, git їх не чіпає
+*.ctr binary
