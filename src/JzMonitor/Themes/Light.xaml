@@ -29,6 +29,8 @@
     <SolidColorBrush x:Key="Caution" Color="{StaticResource CautionColor}"/>
     <SolidColorBrush x:Key="Danger" Color="{StaticResource DangerColor}"/>
     <SolidColorBrush x:Key="Info" Color="{StaticResource InfoColor}"/>
+    <!-- Кнопка «закрити» власного заголовка вікна — як у Windows -->
+    <SolidColorBrush x:Key="CloseHover" Color="#E81123"/>
 
     <FontFamily x:Key="IconFont">Segoe MDL2 Assets</FontFamily>
     <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
@@ -502,5 +504,36 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Кнопки вікна для вікон із власним заголовком (Controls/CaptionButtons) — на всю висоту рядка -->
+    <Style x:Key="CaptionButton" TargetType="Button">
+        <Setter Property="Width" Value="46"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource Panel3}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource CloseHover}"/>
+                <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

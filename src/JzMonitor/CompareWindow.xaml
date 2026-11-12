@@ -8,6 +8,12 @@
         Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
+    <!-- Власний заголовок, як у головному вікні: верхній рядок — заголовок вікна -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="44" ResizeBorderThickness="6" GlassFrameThickness="0,0,0,1"
+                      CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
         <!-- Картка файлу: назва, відкриття, діапазон -->
         <DataTemplate x:Key="SideTemplate">
@@ -72,57 +78,73 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*" MinHeight="220"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Файли A і B -->
-        <UniformGrid Columns="2" Margin="0,0,-12,12">
-            <ContentControl Content="{Binding SideA}" ContentTemplate="{StaticResource SideTemplate}"/>
-            <ContentControl Content="{Binding SideB}" ContentTemplate="{StaticResource SideTemplate}"/>
-        </UniformGrid>
-
-        <!-- Графік -->
-        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="14,10,14,14" Margin="0,0,0,12">
+    <DockPanel>
+        <!-- ═══ Заголовок ═══ -->
+        <Border DockPanel.Dock="Top" Height="44" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
             <DockPanel>
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                    <TextBlock Text="TREND" Style="{StaticResource SectionTitle}" Margin="0,0,16,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="A solid · B dashed · time from the start of each range" Style="{StaticResource Caption}" FontWeight="Normal"
-                               VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding CursorInfo}" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                </DockPanel>
-                <c:ChartControl x:Name="Chart" Series="{Binding Chart}" CursorIndex="{Binding ChartCursor, Mode=OneWay}" XLabel="{Binding ChartXLabel}"/>
+                <c:CaptionButtons DockPanel.Dock="Right"/>
+                <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                    <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Accent}">
+                        <TextBlock Text="JZ" FontWeight="Black" FontSize="11" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Compare recordings" FontWeight="SemiBold" FontSize="14" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
             </DockPanel>
         </Border>
 
-        <!-- Таблиця -->
-        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="14,10,14,10">
-            <StackPanel>
-                <Grid Margin="4,0,4,4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="28"/>
-                        <ColumnDefinition Width="190"/>
-                        <ColumnDefinition Width="90"/>
-                        <ColumnDefinition Width="90"/>
-                        <ColumnDefinition Width="90"/>
-                        <ColumnDefinition Width="70"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="1" Text="AT CURSOR" Style="{StaticResource Caption}" FontSize="10"/>
-                    <TextBlock Grid.Column="2" Text="A" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
-                    <TextBlock Grid.Column="3" Text="B" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
-                    <TextBlock Grid.Column="4" Text="B − A" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
-                    <TextBlock Grid.Column="6" Text="A  MIN / AVG / MAX" Style="{StaticResource Caption}" FontSize="10" Margin="10,0,0,0"/>
-                    <TextBlock Grid.Column="7" Text="B  MIN / AVG / MAX" Style="{StaticResource Caption}" FontSize="10" Margin="10,0,0,0"/>
-                </Grid>
-                <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource RowTemplate}"/>
-                <TextBlock Text="TRIP  (whole range)" Style="{StaticResource SectionTitle}" Margin="4,12,0,4"/>
-                <ItemsControl ItemsSource="{Binding TripRows}" ItemTemplate="{StaticResource RowTemplate}"/>
-            </StackPanel>
-        </Border>
-    </Grid>
+        <Grid Margin="16,12,16,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*" MinHeight="220"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Файли A і B -->
+            <UniformGrid Columns="2" Margin="0,0,-12,12">
+                <ContentControl Content="{Binding SideA}" ContentTemplate="{StaticResource SideTemplate}"/>
+                <ContentControl Content="{Binding SideB}" ContentTemplate="{StaticResource SideTemplate}"/>
+            </UniformGrid>
+
+            <!-- Графік -->
+            <Border Grid.Row="1" Style="{StaticResource Card}" Padding="14,10,14,14" Margin="0,0,0,12">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBlock Text="TREND" Style="{StaticResource SectionTitle}" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="A solid · B dashed · time from the start of each range" Style="{StaticResource Caption}" FontWeight="Normal"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CursorInfo}" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </DockPanel>
+                    <c:ChartControl x:Name="Chart" Series="{Binding Chart}" CursorIndex="{Binding ChartCursor, Mode=OneWay}" XLabel="{Binding ChartXLabel}"/>
+                </DockPanel>
+            </Border>
+
+            <!-- Таблиця -->
+            <Border Grid.Row="2" Style="{StaticResource Card}" Padding="14,10,14,10">
+                <StackPanel>
+                    <Grid Margin="4,0,4,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28"/>
+                            <ColumnDefinition Width="190"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="70"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="1" Text="AT CURSOR" Style="{StaticResource Caption}" FontSize="10"/>
+                        <TextBlock Grid.Column="2" Text="A" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="3" Text="B" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="4" Text="B − A" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
+                        <TextBlock Grid.Column="6" Text="A  MIN / AVG / MAX" Style="{StaticResource Caption}" FontSize="10" Margin="10,0,0,0"/>
+                        <TextBlock Grid.Column="7" Text="B  MIN / AVG / MAX" Style="{StaticResource Caption}" FontSize="10" Margin="10,0,0,0"/>
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource RowTemplate}"/>
+                    <TextBlock Text="TRIP  (whole range)" Style="{StaticResource SectionTitle}" Margin="4,12,0,4"/>
+                    <ItemsControl ItemsSource="{Binding TripRows}" ItemTemplate="{StaticResource RowTemplate}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
 </Window>

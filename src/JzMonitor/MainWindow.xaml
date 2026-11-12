@@ -6,8 +6,7 @@
         Title="{Binding Title}" Height="920" Width="1440" MinWidth="1100" MinHeight="760"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
-        FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
-        StateChanged="OnStateChanged">
+        FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
     <!-- Власний заголовок: верхній рядок програми — це і є заголовок вікна (перетягування, подвійний клік) -->
     <WindowChrome.WindowChrome>
@@ -16,36 +15,6 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <!-- Кнопки вікна (згорнути / розгорнути / закрити) на всю висоту верхнього рядка -->
-        <Style x:Key="CaptionButton" TargetType="Button">
-            <Setter Property="Width" Value="46"/>
-            <Setter Property="Foreground" Value="{StaticResource Text}"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Focusable" Value="False"/>
-            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Panel3}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E81123"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
 
         <!-- Плитка параметра (компактна, 8 в ряд) -->
         <DataTemplate x:Key="TileTemplate">
@@ -189,17 +158,7 @@
         <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
             <DockPanel>
             <!-- Кнопки вікна -->
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
-                <Button Style="{StaticResource CaptionButton}" Click="OnMinimize" ToolTip="Minimize" AutomationProperties.Name="Minimize">
-                    <TextBlock Text="&#xE921;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
-                </Button>
-                <Button Style="{StaticResource CaptionButton}" Click="OnMaximize" AutomationProperties.Name="Maximize or restore">
-                    <TextBlock x:Name="MaxGlyph" Text="&#xE922;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
-                </Button>
-                <Button Style="{StaticResource CloseButton}" Click="OnClose" ToolTip="Close" AutomationProperties.Name="Close">
-                    <TextBlock Text="&#xE8BB;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
-                </Button>
-            </StackPanel>
+            <c:CaptionButtons DockPanel.Dock="Right" Margin="12,0,0,0"/>
             <DockPanel LastChildFill="False" Margin="16,10,0,10">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                     <Border Width="38" Height="38" CornerRadius="9" Background="{StaticResource Accent}">

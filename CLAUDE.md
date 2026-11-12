@@ -27,6 +27,7 @@ src/JzMonitor/                 WPF app (.NET 10, net10.0-windows), no NuGet pack
   ReportWindow + ViewModels/ReportViewModel.cs     report vs a reference recording (Settings.ReferenceFile)
   CompareWindow + ViewModels/CompareViewModel.cs   two recordings side by side (A solid, B dashed)
   ViewModels/, Controls/       MVVM (hand-written ObservableObject/RelayCommand), chart control
+  Controls/CaptionButtons      min/max/close for windows with an own title bar (WindowChrome): main, Compare, Report
   Themes/Light.xaml            the only theme: palette, control styles (all colors live here)
   Assets/JzMonitor.ico         app + window icon (orange "JZ" tile, 16–256 px)
 tests/JzMonitor.Tests/         xUnit (synthetic signals, a synthetic CarTester-style .ctr)

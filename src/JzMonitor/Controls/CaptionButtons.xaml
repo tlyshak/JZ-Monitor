@@ -1,0 +1,17 @@
+<UserControl x:Class="JzMonitor.Controls.CaptionButtons"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             WindowChrome.IsHitTestVisibleInChrome="True">
+    <!-- Кнопки вікна (згорнути / розгорнути / закрити) для вікон із власним заголовком; на всю висоту рядка -->
+    <StackPanel Orientation="Horizontal">
+        <Button Style="{StaticResource CaptionButton}" Click="OnMinimize" ToolTip="Minimize" AutomationProperties.Name="Minimize">
+            <TextBlock Text="&#xE921;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
+        </Button>
+        <Button Style="{StaticResource CaptionButton}" Click="OnMaximize" AutomationProperties.Name="Maximize or restore">
+            <TextBlock x:Name="MaxGlyph" Text="&#xE922;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
+        </Button>
+        <Button Style="{StaticResource CloseButton}" Click="OnClose" ToolTip="Close" AutomationProperties.Name="Close">
+            <TextBlock Text="&#xE8BB;" FontFamily="{StaticResource IconFont}" FontSize="10"/>
+        </Button>
+    </StackPanel>
+</UserControl>
