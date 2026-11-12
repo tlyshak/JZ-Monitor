@@ -435,6 +435,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     public string Title => "JZ Monitor" + (_rec.Source != null ? " — " + Path.GetFileName(_rec.Source) : "") + (_dirty ? " •" : "");
+    /// <summary>Назва файлу у верхньому рядку (стандартного заголовка вікна немає); • — є незбережені зміни.</summary>
+    public string FileTitle => (_rec.Source != null ? Path.GetFileName(_rec.Source) : _rec.Frames.Count > 0 ? "Unsaved recording" : "") + (_dirty ? " •" : "");
     public string VehicleSummary
     {
         get
@@ -644,6 +646,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ChartStart = 0;
         RaiseRange();
         OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(FileTitle));
         OnPropertyChanged(nameof(VehicleSummary));
         _currentIndex = -1;
         CurrentIndex = 0;
@@ -666,6 +669,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _rec.Source = dlg.FileName;
             _dirty = false;
             OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(FileTitle));
             int extra = _rec.Frames.Count(f => f.Bytes.Length > 12);
             Status = "Saved " + dlg.FileName + (extra > 0 ? $" — {extra} frame(s) had bytes 13+ that .ctr cannot hold (use CSV to keep them)" : "");
             return true;
@@ -716,6 +720,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CurrentIndex));
         RaiseRange();
         OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(FileTitle));
         UpdateLinkState();
         ShowFrame();
     }
@@ -746,6 +751,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (_dirty) return;
         _dirty = true;
         OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(FileTitle));
     }
 
     /// <summary>true — можна продовжувати (дані збережено або їх не шкода). reason — що станеться без збереження.</summary>

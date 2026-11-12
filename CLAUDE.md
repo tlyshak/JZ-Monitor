@@ -28,6 +28,7 @@ src/JzMonitor/                 WPF app (.NET 10, net10.0-windows), no NuGet pack
   CompareWindow + ViewModels/CompareViewModel.cs   two recordings side by side (A solid, B dashed)
   ViewModels/, Controls/       MVVM (hand-written ObservableObject/RelayCommand), chart control
   Themes/Light.xaml            the only theme: palette, control styles (all colors live here)
+  Assets/JzMonitor.ico         app + window icon (orange "JZ" tile, 16–256 px)
 tests/JzMonitor.Tests/         xUnit (synthetic signals, a synthetic CarTester-style .ctr)
 docs/PROTOCOL.md               protocol, .ctr spec, verified points, what the original hid
 docs/plans/<slug>/             plans written by /architect

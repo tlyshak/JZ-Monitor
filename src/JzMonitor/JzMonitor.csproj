@@ -10,6 +10,11 @@
     <AssemblyName>JzMonitor</AssemblyName>
     <RootNamespace>JzMonitor</RootNamespace>
     <Version>1.0.0</Version>
+    <ApplicationIcon>Assets\JzMonitor.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\JzMonitor.ico" />
+  </ItemGroup>
 
 </Project>

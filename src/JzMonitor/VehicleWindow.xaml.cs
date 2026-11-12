@@ -7,19 +7,26 @@ namespace JzMonitor;
 public partial class VehicleWindow : Window
 {
     private readonly LogRecording _rec;
-    private readonly TextBox[] _boxes = new TextBox[9];
+    private readonly TextBox?[] _boxes = new TextBox?[9];
+    /// <summary>
+    /// Поля, яких немає у вікні: «Engine type» для цього авто зайвий. Значення в записі не змінюється —
+    /// .ctr лишається побайтово таким, як був.
+    /// </summary>
+    private static readonly HashSet<int> HiddenFields = [5];
 
     public VehicleWindow(LogRecording rec)
     {
         InitializeComponent();
         _rec = rec;
+        int row = 0;
         for (int i = 0; i < 9; i++)
         {
+            if (HiddenFields.Contains(i)) continue;
             Fields.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
             var label = new TextBlock { Text = VehicleInfo.Labels[i], Style = (Style)FindResource("FieldLabel") };
-            Grid.SetRow(label, i);
+            Grid.SetRow(label, row);
             var box = new TextBox { Text = rec.Vehicle.Values[i], Margin = new Thickness(0, 3, 0, 3) };
-            Grid.SetRow(box, i);
+            Grid.SetRow(box, row++);
             Grid.SetColumn(box, 1);
             Fields.Children.Add(label);
             Fields.Children.Add(box);
@@ -30,7 +37,8 @@ public partial class VehicleWindow : Window
 
     private void Ok_Click(object sender, RoutedEventArgs e)
     {
-        for (int i = 0; i < 9; i++) _rec.Vehicle.Values[i] = _boxes[i].Text.Replace("\r", "").Replace("\n", " ");
+        for (int i = 0; i < 9; i++)
+            if (_boxes[i] is { } box) _rec.Vehicle.Values[i] = box.Text.Replace("\r", "").Replace("\n", " ");
         _rec.Comments.Clear();
         var text = CommentsBox.Text.Replace("\r\n", "\n").TrimEnd('\n');
         if (text.Length > 0) _rec.Comments.AddRange(text.Split('\n'));
