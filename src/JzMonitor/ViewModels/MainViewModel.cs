@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using JzMonitor.Controls;
@@ -77,6 +78,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private static readonly Brush ColdBrush = Freeze(Color.FromRgb(0x1E, 0x88, 0xE5));
     private static readonly Brush OkBrush = Freeze(Color.FromRgb(0x18, 0xA8, 0x66));
     private static readonly Brush HotBrush = Freeze(Color.FromRgb(0xE5, 0x48, 0x4D));
+    private static readonly Brush WarnBrush = Freeze(Color.FromRgb(0xE8, 0xA3, 0x17));
+    private static readonly Brush OrangeBrush = Freeze(Color.FromRgb(0xF0, 0x7E, 0x1F));
+    private static readonly Brush DeepRedBrush = Freeze(Color.FromRgb(0xC6, 0x28, 0x28));
 
     private readonly Dispatcher _ui = Application.Current.Dispatcher;
     private readonly FrameAssembler _assembler = new();
@@ -88,7 +92,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool _dirty;
     private DateTime _lastValidFrame;
     private int _okFrames, _badFrames;
-    /// <summary>Мінімуми й максимуми параметрів за поточний запис (лише кадри з працюючим двигуном).</summary>
+    /// <summary>Мінімуми й максимуми параметрів у діапазоні перегляду.</summary>
     private readonly Dictionary<string, ParamValue> _min = new(), _max = new();
     /// <summary>Витрата палива, відстань і час за поїздку (поточний запис).</summary>
     private readonly TripMeter _trip = new();
@@ -120,11 +124,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ImportIniCommand = new RelayCommand(ImportIni);
         ReplayEdgesCommand = new RelayCommand(ReplayEdges, () => !IsRunning);
         ToggleMarkCommand = new RelayCommand(ToggleMark, () => CurrentFrame != null);
+        PrevMarkCommand = new RelayCommand(() => GoToMark(-1), () => MarkCount > 0);
+        NextMarkCommand = new RelayCommand(() => GoToMark(+1), () => MarkCount > 0);
         DeleteFrameCommand = new RelayCommand(DeleteFrame, () => !IsRunning && CurrentFrame != null);
         VehicleCommand = new RelayCommand(EditVehicle);
-        PrevCommand = new RelayCommand(() => CurrentIndex--, () => _currentIndex > 0);
-        NextCommand = new RelayCommand(() => CurrentIndex++, () => _currentIndex < _rec.Frames.Count - 1);
-        LatestCommand = new RelayCommand(() => { Follow = true; CurrentIndex = _rec.Frames.Count - 1; }, () => _rec.Frames.Count > 0);
+        PrevCommand = new RelayCommand(() => CurrentIndex--, () => _currentIndex > RangeLo);
+        NextCommand = new RelayCommand(() => CurrentIndex++, () => _currentIndex < RangeHi);
+        LatestCommand = new RelayCommand(() =>
+        {
+            if (!IsRangeFull) SetRange(FrameRange.All(_rec.Frames.Count));
+            Follow = true;
+            CurrentIndex = _rec.Frames.Count - 1;
+        }, () => _rec.Frames.Count > 0);
+        FullRangeCommand = new RelayCommand(() => SetRange(FrameRange.All(_rec.Frames.Count)), () => _rec.Frames.Count > 0 && !IsRangeFull);
+        CompareCommand = new RelayCommand(OpenCompare);
+        ToggleRangePanelCommand = new RelayCommand(() => RangePanelOpen = !RangePanelOpen);
 
         _linkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _linkTimer.Tick += (_, _) => UpdateLinkState();
@@ -142,11 +156,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand ImportIniCommand { get; }
     public RelayCommand ReplayEdgesCommand { get; }
     public RelayCommand ToggleMarkCommand { get; }
+    public RelayCommand PrevMarkCommand { get; }
+    public RelayCommand NextMarkCommand { get; }
     public RelayCommand DeleteFrameCommand { get; }
     public RelayCommand VehicleCommand { get; }
     public RelayCommand PrevCommand { get; }
     public RelayCommand NextCommand { get; }
     public RelayCommand LatestCommand { get; }
+    public RelayCommand FullRangeCommand { get; }
+    public RelayCommand CompareCommand { get; }
+    public RelayCommand ToggleRangePanelCommand { get; }
 
     #region Властивості для прив'язки
 
@@ -185,6 +204,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public int InjectorCount { get => Settings.InjectorCount; set { Settings.InjectorCount = value; SettingsChanged(); } }
     public int InjectionRate { get => Settings.InjectionRate; set { Settings.InjectionRate = value; SettingsChanged(); } }
     public double SpeedDivisor { get => Settings.SpeedDivisor; set { if (value > 0) { Settings.SpeedDivisor = value; SettingsChanged(); } } }
+    public double MapKpaPerCount { get => Settings.MapKpaPerCount; set { if (value > 0) { Settings.MapKpaPerCount = value; SettingsChanged(); } } }
+
     public double BitTimeMs { get => Settings.BitTimeMs; set { Settings.BitTimeMs = value; SettingsChanged(); } }
     public int GapBits { get => Settings.GapBits; set { Settings.GapBits = value; SettingsChanged(); } }
     public int MinDataBytes { get => Settings.MinDataBytes; set { Settings.MinDataBytes = value; SettingsChanged(); } }
@@ -206,13 +227,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         get => _currentIndex;
         set
         {
-            value = Math.Clamp(value, -1, _rec.Frames.Count - 1);
+            value = _rec.Frames.Count == 0 ? -1 : Math.Clamp(value, RangeLo, RangeHi);
             if (!Set(ref _currentIndex, value)) return;
             if (IsRunning && value < _rec.Frames.Count - 1) Follow = false;
             ShowFrame();
         }
     }
     public int MaxIndex => Math.Max(0, _rec.Frames.Count - 1);
+
+    // ── Діапазон перегляду ──
+    // Початок і кінець (індекси, включно). _rangeEnd = null — «до кінця запису»: під час живого читання
+    // діапазон росте разом із записом.
+    private int _rangeStart;
+    private int? _rangeEnd;
+    public int RangeLo => _rec.Frames.Count == 0 ? 0 : Math.Clamp(_rangeStart, 0, _rec.Frames.Count - 1);
+    public int RangeHi => _rec.Frames.Count == 0 ? 0 : Math.Clamp(_rangeEnd ?? _rec.Frames.Count - 1, RangeLo, _rec.Frames.Count - 1);
+    public bool IsRangeFull => _rangeStart == 0 && _rangeEnd == null;
+    private FrameRange Range => new(RangeLo, RangeHi);
+
+    private string _rangeInfo = "";
+    public string RangeInfo { get => _rangeInfo; private set => Set(ref _rangeInfo, value); }
     public ObdFrame? CurrentFrame => _currentIndex >= 0 && _currentIndex < _rec.Frames.Count ? _rec.Frames[_currentIndex] : null;
 
     private string _frameNumber = "—";
@@ -241,7 +275,111 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private IReadOnlyList<ChartSeries>? _chart;
     public IReadOnlyList<ChartSeries>? Chart { get => _chart; set => Set(ref _chart, value); }
     public int ChartStart { get; private set; }
-    public int ChartCursor => _currentIndex - ChartStart;
+    /// <summary>Крок проріджування: точка графіка i = кадр ChartStart + i × ChartStep.</summary>
+    public int ChartStep { get; private set; } = 1;
+    public int ChartCursor => ChartStep > 0 ? (_currentIndex - ChartStart) / ChartStep : 0;
+    /// <summary>Підпис осі часу графіка: час кадру під точкою.</summary>
+    public Func<int, string> ChartXLabel => i =>
+    {
+        int f = ChartStart + i * ChartStep;
+        return f >= 0 && f < _rec.Frames.Count ? _rec.Frames[f].Time.ToString("HH:mm:ss") : "";
+    };
+
+    /// <summary>Клік або перетягування мишею по графіку.</summary>
+    public void SeekChart(int point) => CurrentIndex = ChartStart + point * ChartStep;
+
+    // ── Огляд усього запису (вкладка Range): ті самі параметри, вибраний діапазон підсвічено ──
+    private IReadOnlyList<ChartSeries>? _overview;
+    public IReadOnlyList<ChartSeries>? Overview { get => _overview; private set => Set(ref _overview, value); }
+    /// <summary>Крок проріджування огляду: точка i = кадр i × _overviewStep.</summary>
+    private int _overviewStep = 1;
+    public int OverviewCursor => _currentIndex < 0 ? -1 : _currentIndex / _overviewStep;
+    public int OverviewSelStart => IsRangeFull ? -1 : RangeLo / _overviewStep;
+    public int OverviewSelEnd => IsRangeFull ? -1 : RangeHi / _overviewStep;
+    public Func<int, string> OverviewXLabel => i =>
+    {
+        int f = Math.Min(i * _overviewStep, _rec.Frames.Count - 1);
+        return f >= 0 ? _rec.Frames[f].Time.ToString("HH:mm:ss") : "";
+    };
+    public bool IsRangeSet => !IsRangeFull;
+
+    // ── Позначені кадри (зірочка): мітки на графіках і перехід між ними ──
+    private IReadOnlyList<int>? _chartMarks, _overviewMarks;
+    public IReadOnlyList<int>? ChartMarks { get => _chartMarks; private set => Set(ref _chartMarks, value); }
+    public IReadOnlyList<int>? OverviewMarks { get => _overviewMarks; private set => Set(ref _overviewMarks, value); }
+    private int _markCount;
+    public int MarkCount { get => _markCount; private set { if (Set(ref _markCount, value)) OnPropertyChanged(nameof(HasMarks)); } }
+    public bool HasMarks => _markCount > 0;
+    /// <summary>Лічильник змін позначок — щоб не перераховувати мітки на кожному кадрі.</summary>
+    private int _marksVersion;
+    private string? _marksSig;
+
+    private void UpdateMarks()
+    {
+        int n = _rec.Frames.Count;
+        string sig = $"{_marksVersion}:{n}:{ChartStart}:{ChartStep}:{RangeHi}:{_overviewStep}";
+        if (sig == _marksSig) return;
+        _marksSig = sig;
+        var marked = new List<int>();
+        for (int i = 0; i < n; i++) if (_rec.Frames[i].Marked) marked.Add(i);
+        MarkCount = marked.Count;
+        int hi = RangeHi;
+        ChartMarks = marked.Where(i => i >= ChartStart && i <= hi).Select(i => (i - ChartStart) / Math.Max(1, ChartStep)).ToList();
+        OverviewMarks = marked.Select(i => i / _overviewStep).ToList();
+    }
+
+    /// <summary>Попередня / наступна позначка (по колу); поза діапазоном — діапазон скидається.</summary>
+    private void GoToMark(int dir)
+    {
+        int n = _rec.Frames.Count;
+        if (n == 0) return;
+        int cur = Math.Max(_currentIndex, 0);
+        for (int k = 1; k <= n; k++)
+        {
+            int i = ((cur + dir * k) % n + n) % n;
+            if (!_rec.Frames[i].Marked) continue;
+            if (!Range.Contains(i)) SetRange(FrameRange.All(n));
+            Follow = false;
+            CurrentIndex = i;
+            return;
+        }
+    }
+
+    /// <summary>Замість графіка тренду показано огляд усього запису з вибором діапазону.</summary>
+    private bool _rangePanelOpen;
+    public bool RangePanelOpen
+    {
+        get => _rangePanelOpen;
+        set { if (Set(ref _rangePanelOpen, value)) OnPropertyChanged(nameof(TrendVisible)); }
+    }
+    public bool TrendVisible => !_rangePanelOpen;
+
+    /// <summary>Клік по огляду: курсор; поза діапазоном — діапазон скидається, щоб кадр було видно.</summary>
+    public void SeekOverview(int point)
+    {
+        int f = Math.Min(point * _overviewStep, _rec.Frames.Count - 1);
+        if (f < 0) return;
+        if (!Range.Contains(f)) SetRange(FrameRange.All(_rec.Frames.Count));
+        CurrentIndex = f;
+    }
+
+    /// <summary>Перетягування по огляду — новий діапазон.</summary>
+    public void SelectOverviewRange(int a, int b)
+    {
+        int n = _rec.Frames.Count;
+        if (n == 0) return;
+        // остання точка огляду покриває хвіст запису до кінця
+        int last = b >= (n - 1) / _overviewStep ? n - 1 : Math.Min(b * _overviewStep, n - 1);
+        SetRange(new FrameRange(Math.Min(a * _overviewStep, n - 1), last));
+    }
+
+    /// <summary>Shift + перетягування по графіку — новий діапазон.</summary>
+    public void SelectChartRange(int a, int b)
+    {
+        int n = _rec.Frames.Count;
+        if (n == 0) return;
+        SetRange(new FrameRange(Math.Clamp(ChartStart + a * ChartStep, 0, n - 1), Math.Clamp(ChartStart + b * ChartStep, 0, n - 1)));
+    }
 
     public string Title => "JZ Monitor" + (_rec.Source != null ? " — " + Path.GetFileName(_rec.Source) : "") + (_dirty ? " •" : "");
     public string VehicleSummary
@@ -380,9 +518,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Counters = $"{_okFrames} ok  ·  {_badFrames} rejected";
             if (!f.Valid) return;
             _rec.Frames.Add(f);
-            AccumulateStats(f);
+            if (_rangeEnd == null && _rec.Frames.Count - 1 >= _rangeStart) AccumulateStats(f);
             MarkDirty();
-            OnPropertyChanged(nameof(MaxIndex));
+            RaiseRange();
             if (Follow) { _currentIndex = _rec.Frames.Count - 1; OnPropertyChanged(nameof(CurrentIndex)); ShowFrame(); }
             else { UpdateStatTexts(); ShowTrip(); UpdateChart(); }
         });
@@ -446,9 +584,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void AfterLoad()
     {
+        _marksVersion++;
+        _rangeStart = 0;
+        _rangeEnd = null;
         _chartSig = null;
         ChartStart = 0;
-        OnPropertyChanged(nameof(MaxIndex));
+        RaiseRange();
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(VehicleSummary));
         _currentIndex = -1;
@@ -510,6 +651,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         var vehicle = _rec.Vehicle;
         _rec = new LogRecording { Vehicle = vehicle };
+        _rangeStart = 0;
+        _rangeEnd = null;
         _chartSig = null;
         ChartStart = 0;
         _min.Clear();
@@ -518,7 +661,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _dirty = false;
         _currentIndex = -1;
         OnPropertyChanged(nameof(CurrentIndex));
-        OnPropertyChanged(nameof(MaxIndex));
+        RaiseRange();
         OnPropertyChanged(nameof(Title));
         UpdateLinkState();
         ShowFrame();
@@ -568,6 +711,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (CurrentFrame is not { } f) return;
         f.Marked = !f.Marked;
+        _marksVersion++;
         MarkDirty();
         ShowFrame();
     }
@@ -575,11 +719,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void DeleteFrame()
     {
         if (CurrentFrame is not { } f) return;
+        int removed = _currentIndex;
         _rec.Frames.Remove(f);
+        _marksVersion++;
+        if (removed < _rangeStart) _rangeStart--;
+        if (_rangeEnd is int e && removed <= e) _rangeEnd = e - 1 < _rangeStart ? null : e - 1;
         _chartSig = null;
         RecomputeStats();
         MarkDirty();
-        OnPropertyChanged(nameof(MaxIndex));
+        RaiseRange();
         _currentIndex = Math.Min(_currentIndex, _rec.Frames.Count - 1);
         OnPropertyChanged(nameof(CurrentIndex));
         ShowFrame();
@@ -615,7 +763,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _min.Clear();
         _max.Clear();
         _trip.Reset();
-        foreach (var f in _rec.Frames) AccumulateStats(f);
+        if (_rec.Frames.Count == 0) return;
+        var range = Range;
+        for (int i = range.Start; i <= range.End; i++) AccumulateStats(_rec.Frames[i]);
     }
 
     private void UpdateStatTexts()
@@ -672,7 +822,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void ShowTrip()
     {
-        var t = _trip.At(_currentIndex);
+        var t = _trip.At(_currentIndex - RangeLo);
         bool any = _currentIndex >= 0;
         foreach (var row in Parameters.Where(r => r.IsTrip))
         {
@@ -726,7 +876,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             row.Unit = v.Unit;
             row.IsOn = row.IsFlag && v.Value == 1;
             row.Fraction = TileFraction(f, row.Key, v);
-            row.Accent = TileAccent(row.Key, v.Value);
+            row.Accent = TileAccent(row.Key, v, values);
         }
         ShowTrip();
         FrameNumber = $"{_currentIndex + 1} / {_rec.Frames.Count}";
@@ -750,6 +900,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         [("ign", "°")] = (-10, 50),
         [("inj", "ms")] = (0, 20),
         [("iac", "steps")] = (0, 125), // повний хід ISCV — 125 кроків
+        [("spd", "km/h")] = (0, 220),
     };
 
     private static double TileFraction(ObdFrame f, string key, ParamValue v)
@@ -760,17 +911,129 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return n > 0 && f.B(n) is byte b ? b / 255.0 : 0;
     }
 
-    private static Brush TileAccent(string key, double? value) => key switch
+    /// <summary>
+    /// Зони кольору смужок на плитках: до Warn — зелена (норма), від Warn — жовта (близько до межі),
+    /// від Danger — червона. Пороги — орієнтовні для стокового 2JZ-GTE non-VVTi (не з протоколу).
+    /// Ключ — параметр і одиниця, як у TileScales.
+    /// </summary>
+    private static readonly Dictionary<(string Key, string Unit), (double Warn, double Danger)> TileZones = new()
     {
-        "ect" when value < 60 => ColdBrush,
-        "ect" when value > 105 => HotBrush,
-        "ect" => OkBrush,
-        "rpm" when value > 6500 => HotBrush,
-        _ => AccentBrush
+        [("rpm", "rpm")] = (5500, 6500),  // відсічка ~7000
     };
 
-    /// <summary>Скільки кадрів показує графік одночасно (для швидкодії).</summary>
-    private const int ChartWindow = 600;
+    /// <summary>Плавна шкала кольору: зелений → світло-зелений → жовтий → помаранчевий → червоний.</summary>
+    private static readonly Color[] HeatColors =
+    [
+        Color.FromRgb(0x18, 0xA8, 0x66), Color.FromRgb(0x8B, 0xC3, 0x4A), Color.FromRgb(0xE8, 0xA3, 0x17),
+        Color.FromRgb(0xF0, 0x7E, 0x1F), Color.FromRgb(0xE5, 0x48, 0x4D),
+    ];
+
+    /// <summary>
+    /// Колір між «норма» (ok) і «межа» (limit): до ok — зелений, від limit — червоний, між ними — плавно.
+    /// limit може бути меншим за ok (для розрідження: що слабше, то гірше).
+    /// </summary>
+    private static Brush HeatBrush(double x, double ok, double limit)
+    {
+        double k = (x - ok) / (limit - ok);
+        if (k <= 0) return OkBrush;
+        if (k >= 1) return HotBrush;
+        double pos = k * (HeatColors.Length - 1);
+        int i = (int)pos;
+        double t = pos - i;
+        var (c0, c1) = (HeatColors[i], HeatColors[i + 1]);
+        byte Mix(byte a, byte b) => (byte)Math.Round(a + (b - a) * t);
+        return Freeze(Color.FromRgb(Mix(c0.R, c1.R), Mix(c0.G, c1.G), Mix(c0.B, c1.B)));
+    }
+
+    // Пороги плавних шкал (орієнтовні для стокового 2JZ-GTE non-VVTi, не з протоколу)
+    /// <summary>ОР, °C: норма прогрітого ~85–95, від 105 — перегрів.</summary>
+    private const double EctOk = 95, EctLimit = 105;
+    /// <summary>Наддув, bar: штатний ~0.6–0.7, близько 1.0 — відсічка палива штатним ECU.</summary>
+    private const double BoostOk = 0.7, BoostLimit = 1.0;
+    /// <summary>
+    /// Розрідження на прогрітому холостому ходу, bar: у записах еталонного авто −0.63…−0.80, медіана ≈ −0.69;
+    /// слабше за −0.5 — підсос повітря, клапани, запалювання.
+    /// </summary>
+    private const double IdleVacOk = -0.6, IdleVacLimit = -0.5;
+
+    /// <summary>Скважність форсунок, %: від Warn — жовта, від Danger — червона (запас продуктивності).</summary>
+    private const double InjDutyWarn = 80, InjDutyDanger = 90;
+
+    /// <summary>
+    /// Прогріті холості (двигун прогрітий, авто стоїть, дросель закритий) — у записах еталонного авто:
+    /// впорскування 1.9–2.9 мс, кут 10–27°. Більше впорскування — ECU бачить більше повітря або додає паливо
+    /// (підсос повітря, пропуски); кут поза межами — ECU сильно «ловить» оберти кутом або зрізає його.
+    /// </summary>
+    private const double IdleInjOk = 3.0, IdleInjLimit = 3.6;
+    private const double IdleIgnLowOk = 10, IdleIgnLowLimit = 5, IdleIgnHighOk = 28, IdleIgnHighLimit = 34;
+
+    /// <summary>Прогріті холості: оберти 400–999 (нижче — прокрутка стартером), ОР ≥ 80 °C, дросель закритий (IDL), авто стоїть.</summary>
+    private static bool IsWarmIdle(IReadOnlyDictionary<string, ParamValue> values) =>
+        values.TryGetValue("rpm", out var rpm) && rpm.Value is >= 400 and < 1000
+        && values.TryGetValue("ect", out var ect) && ect.Value >= 80
+        && values.TryGetValue("f12.1", out var idl) && idl.Value == 1
+        && (!values.TryGetValue("spd", out var spd) || spd.Value is not > 0);
+
+    /// <summary>Швидкість, км/год: від порогу — колір (зелений до 100).</summary>
+    private static readonly (double From, Brush Brush)[] SpeedZones =
+    [
+        (200, HotBrush),
+        (175, Freeze(Color.FromRgb(0xEA, 0x5B, 0x3A))), // червонуватий
+        (160, OrangeBrush),
+        (140, WarnBrush),
+        (120, Freeze(Color.FromRgb(0xC0, 0xCA, 0x33))), // зелено-жовтий
+        (100, Freeze(Color.FromRgb(0x8B, 0xC3, 0x4A))), // світло-зелений
+    ];
+
+    private static Brush TileAccent(string key, ParamValue v, IReadOnlyDictionary<string, ParamValue> values)
+    {
+        if (v.Value is not double x) return OkBrush;
+        if (key == "spd")
+        {
+            foreach (var (from, brush) in SpeedZones)
+                if (x > from) return brush;
+            return OkBrush;
+        }
+        if (key == "ect" && v.Unit == "°C")
+        {
+            if (x < 60) return ColdBrush; // двигун ще не прогрітий
+            return HeatBrush(x, EctOk, EctLimit);
+        }
+        // Холостий хід провалюється: нижче 600 — жовта, 575 — помаранчева, 550 — червона, 525 — темно-червона
+        // (0 — двигун заглушено, це не провал)
+        if (key == "rpm" && x > 0 && x < 600)
+            return x < 525 ? DeepRedBrush : x < 550 ? HotBrush : x < 575 ? OrangeBrush : WarnBrush;
+        if (key == "inj")
+        {
+            if (values.TryGetValue("rpm", out var rpm) && rpm.Value is > 0)
+            {
+                // Під навантаженням важливо, яку частку циклу (2 оберти) займає форсунка
+                double duty = x / (120_000 / rpm.Value.Value) * 100;
+                if (duty > InjDutyWarn) return HeatBrush(duty, InjDutyWarn, InjDutyDanger);
+                if (IsWarmIdle(values)) return HeatBrush(x, IdleInjOk, IdleInjLimit);
+            }
+            return OkBrush;
+        }
+        if (key == "ign")
+        {
+            // Детонація: ECU зрізає кут — одразу червоний
+            if (values.TryGetValue("f11.4", out var knock) && knock.Value == 1) return HotBrush;
+            if (!IsWarmIdle(values)) return OkBrush;
+            return x < IdleIgnLowOk ? HeatBrush(x, IdleIgnLowOk, IdleIgnLowLimit) : HeatBrush(x, IdleIgnHighOk, IdleIgnHighLimit);
+        }
+        if (key == "air" && v.Unit == "bar")
+        {
+            if (x > BoostOk) return HeatBrush(x, BoostOk, BoostLimit);
+            // Розрідження оцінюємо лише на прогрітому холостому ходу
+            return IsWarmIdle(values) ? HeatBrush(x, IdleVacOk, IdleVacLimit) : OkBrush;
+        }
+        if (TileZones.TryGetValue((key, v.Unit), out var z))
+            return x >= z.Danger ? HotBrush : x >= z.Warn ? WarnBrush : OkBrush;
+        return OkBrush;
+    }
+
+    /// <summary>Скільки точок малює графік щонайбільше; довші діапазони проріджуються.</summary>
+    private const int MaxChartPoints = 1500;
     /// <summary>Підпис побудованих серій: якщо не змінився — перебудова не потрібна, рухається лише курсор.</summary>
     private string? _chartSig;
 
@@ -778,36 +1041,29 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         var keys = Parameters.Where(p => p.Charted).ToList();
         int n = _rec.Frames.Count;
-        if (keys.Count == 0 || n == 0) { Chart = null; _chartSig = null; return; }
+        UpdateOverview(keys);
+        if (keys.Count == 0 || n == 0) { Chart = null; _chartSig = null; UpdateMarks(); return; }
 
-        // Вікно стоїть на місці, доки поточний кадр у його межах, — інакше під час перетягування
-        // мишею дані «їхали б» під курсором. Під час живого читання — останні кадри справа.
-        int start = ChartStart;
-        if (n <= ChartWindow) start = 0;
-        else if (IsRunning && Follow) start = n - ChartWindow;
-        else
-        {
-            // Мінімальний зсув: вікно «підтягується» рівно настільки, щоб поточний кадр був видимим —
-            // так прокрутка плавна, без перескоку на пів вікна.
-            if (_currentIndex < start) start = _currentIndex;
-            else if (_currentIndex >= start + ChartWindow) start = _currentIndex - ChartWindow + 1;
-            start = Math.Clamp(start, 0, n - ChartWindow);
-        }
-        int end = Math.Min(n, start + ChartWindow);
+        // Графік показує весь діапазон перегляду; задовгий — через кожен step-й кадр
+        int start = RangeLo, last = RangeHi;
+        int step = Math.Max(1, (int)Math.Ceiling((last - start + 1) / (double)MaxChartPoints));
 
-        string sig = $"{start}:{end}:{_settingsVersion}:{string.Join(",", keys.Select(k => k.Key))}";
-        if (sig == _chartSig && Chart != null) { OnPropertyChanged(nameof(ChartCursor)); return; }
+        string sig = $"{start}:{last}:{step}:{_settingsVersion}:{string.Join(",", keys.Select(k => k.Key))}";
+        if (sig == _chartSig && Chart != null) { OnPropertyChanged(nameof(ChartCursor)); UpdateMarks(); return; }
         _chartSig = sig;
 
-        var frames = _rec.Frames.Skip(start).Take(end - start).Select(f => ParameterDecoder.Decode(f, Settings).ToDictionary(p => p.Key)).ToList();
+        var frames = Enumerable.Range(0, (last - start) / step + 1)
+            .Select(i => ParameterDecoder.Decode(_rec.Frames[start + i * step], Settings).ToDictionary(p => p.Key)).ToList();
         ChartStart = start;
+        ChartStep = step;
+        OnPropertyChanged(nameof(ChartXLabel));
         Chart = keys.Select(k => new ChartSeries
         {
             Name = k.Name,
             // одиницю, що дублює назву (RPM / rpm), не показуємо
             Unit = k.Unit.Equals(k.Name, StringComparison.OrdinalIgnoreCase) ? "" : k.Unit,
             Color = k.Color,
-            // Стала шкала — MIN/MAX усього запису: під час прокрутки лінії не стрибають по вертикалі
+            // Стала шкала — MIN/MAX діапазону перегляду
             Min = _min.TryGetValue(k.Key, out var mn) ? mn.Value : null,
             Max = _max.TryGetValue(k.Key, out var mx) ? mx.Value : null,
             // Впорскування й кут при заглушеному двигуні не мають сенсу — розрив лінії
@@ -815,6 +1071,90 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 && !(RunningOnlyKeys.Contains(k.Key) && d.TryGetValue("rpm", out var r) && r.Value == 0) ? v.Value : null).ToArray()
         }).ToList();
         OnPropertyChanged(nameof(ChartCursor));
+        UpdateMarks();
+    }
+
+    /// <summary>Скільки точок щонайбільше має огляд усього запису.</summary>
+    private const int MaxOverviewPoints = 1200;
+    private string? _overviewSig;
+
+    private void UpdateOverview(List<ParamRow> keys)
+    {
+        int n = _rec.Frames.Count;
+        OnPropertyChanged(nameof(OverviewCursor));
+        if (keys.Count == 0 || n == 0) { Overview = null; _overviewSig = null; return; }
+        int step = Math.Max(1, (int)Math.Ceiling(n / (double)MaxOverviewPoints));
+        string sig = $"{n}:{step}:{_settingsVersion}:{string.Join(",", keys.Select(k => k.Key))}";
+        if (sig == _overviewSig && Overview != null) return;
+        _overviewSig = sig;
+        _overviewStep = step;
+
+        var frames = Enumerable.Range(0, (n - 1) / step + 1)
+            .Select(i => ParameterDecoder.Decode(_rec.Frames[i * step], Settings).ToDictionary(p => p.Key)).ToList();
+        // Шкала огляду — за всім записом (а не за діапазоном), тому Min/Max не задаються
+        Overview = keys.Select(k => new ChartSeries
+        {
+            Name = k.Name,
+            Unit = k.Unit.Equals(k.Name, StringComparison.OrdinalIgnoreCase) ? "" : k.Unit,
+            Color = k.Color,
+            Values = frames.Select(d => d.TryGetValue(k.Key, out var v)
+                && !(RunningOnlyKeys.Contains(k.Key) && d.TryGetValue("rpm", out var r) && r.Value == 0) ? v.Value : null).ToArray()
+        }).ToList();
+        OnPropertyChanged(nameof(OverviewXLabel));
+        OnPropertyChanged(nameof(OverviewCursor));
+        OnPropertyChanged(nameof(OverviewSelStart));
+        OnPropertyChanged(nameof(OverviewSelEnd));
+    }
+
+    private void RaiseRange()
+    {
+        OnPropertyChanged(nameof(MaxIndex));
+        OnPropertyChanged(nameof(RangeLo));
+        OnPropertyChanged(nameof(RangeHi));
+        OnPropertyChanged(nameof(IsRangeSet));
+        OnPropertyChanged(nameof(OverviewSelStart));
+        OnPropertyChanged(nameof(OverviewSelEnd));
+        UpdateRangeTexts();
+    }
+
+    private void UpdateRangeTexts()
+    {
+        var frames = _rec.Frames;
+        if (frames.Count == 0)
+        {
+            RangeInfo = "";
+            return;
+        }
+        var range = Range;
+        var d = range.Duration(frames);
+        RangeInfo = $"{range.Count:N0} of {frames.Count:N0} frames  ·  {(d.TotalHours >= 1 ? d.ToString(@"h\:mm\:ss") : d.ToString(@"m\:ss"))}"
+                    + (IsRangeFull ? "" : "  ·  range");
+        OnPropertyChanged(nameof(IsRangeFull));
+    }
+
+    /// <summary>Застосувати діапазон перегляду: графік, повзунок, MIN/MAX і підсумки поїздки — лише в його межах.</summary>
+    private void SetRange(FrameRange range)
+    {
+        int n = _rec.Frames.Count;
+        if (n == 0) return;
+        _rangeStart = Math.Clamp(range.Start, 0, n - 1);
+        // Діапазон до останнього кадру лишається «відкритим» — під час читання росте з записом
+        _rangeEnd = range.End >= n - 1 ? null : Math.Max(range.End, _rangeStart);
+        if (!IsRangeFull) Follow = false;
+        _chartSig = null;
+        RecomputeStats();
+        RaiseRange();
+        int cur = _currentIndex;
+        _currentIndex = -2; // змусити оновлення навіть якщо індекс не змінився
+        CurrentIndex = Range.Contains(cur) ? cur : RangeLo;
+        CommandManager.InvalidateRequerySuggested(); // Full / Prev / Next — одразу, без очікування введення
+        Status = IsRangeFull ? "Showing the whole recording" : $"Range: frames {RangeLo + 1}–{RangeHi + 1}";
+    }
+
+    private void OpenCompare()
+    {
+        var w = new CompareWindow(_rec, Settings, Range) { Owner = Application.Current.MainWindow };
+        w.Show();
     }
 
     #endregion

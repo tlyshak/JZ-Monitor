@@ -33,7 +33,10 @@ public static class ParameterDecoder
         new(12, 3, "Park / Neutral", "ON", "OFF", false),
         new(12, 4, "O2 sensor", "RICH", "LEAN", false),
         new(12, 6, "Bit 12.6 (unknown)", "1", "0", true),
-        new(12, 7, "TE1 → E1", "YES", "NO", false),
+        // CarTester підписував біт як «TE1→E1», але в записах еталонного авто (TE1 не замкнено, TE2–E1 замкнено)
+        // він = 1 від увімкнення запалювання до першого руху (швидкість > 0) і далі не повертається —
+        // це прапорець «сигналу датчика швидкості ще не було» (перевірка VSS у тестовому режимі TE2)
+        new(12, 7, "No speed signal yet", "YES", "NO", false),
     ];
 
     public static List<ParamValue> Decode(ObdFrame f, DecoderSettings s)
@@ -56,8 +59,8 @@ public static class ParameterDecoder
             case AirSensor.MapMmHg: Add("air", "MAP", f.B(5), b => b * 4.886, "mmHg", "0"); break;
             case AirSensor.MapTurboKpa: Add("air", "MAP", f.B(5), b => b * 0.97, "kPa", "0.0"); break;
             case AirSensor.MapTurboMmHg: Add("air", "MAP", f.B(5), b => b * 7.732, "mmHg", "0"); break;
-            // Наддув відносно атмосфери: формула MAP-T (×0.97 кПа) мінус 101.3 кПа, у барах
-            case AirSensor.MapTurboBoostBar: Add("air", "MAP", f.B(5), b => (b * 0.97 - StdAtmKpa) / 100, "bar", "0.00"); break;
+            // Наддув відносно нормальної атмосфери (101.3 кПа), у барах — без підгонки нуля: показник датчика як є
+            case AirSensor.MapTurboBoostBar: Add("air", "MAP", f.B(5), b => (b * MapScale(s) - StdAtmKpa) / 100, "bar", "0.00"); break;
             case AirSensor.MafGs: Add("air", "MAF", f.B(5), b => b * 2.0, "g/s", "0.0"); break;
             case AirSensor.VafVolt: Add("air", "VAF", f.B(5), b => b / 255.0 * 5, "V", "0.00"); break;
             default: Add("air", "Air sensor", f.B(5), b => b, "raw", "0"); break;
@@ -112,6 +115,8 @@ public static class ParameterDecoder
             list.Add(new ParamValue(key, name, v, v.ToString(fmt, Ci), unit, $"{b} · 0x{b:X2}"));
         }
     }
+
+    private static double MapScale(DecoderSettings s) => s.MapKpaPerCount > 0 ? s.MapKpaPerCount : 0.97;
 
     private static double SpeedDivisor(DecoderSettings s) => s.SpeedDivisor > 0 ? s.SpeedDivisor : 1;
 

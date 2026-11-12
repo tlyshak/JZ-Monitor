@@ -40,6 +40,12 @@ public sealed class DecoderSettings
     /// </summary>
     public double SpeedDivisor { get; set; } = 3.4;
 
+    /// <summary>
+    /// Шкала MAP для наддуву в барах: кПа на одиницю байта 5. 0.97 — як у CarTester (MAP-T).
+    /// Змінювати лише після перевірки манометром.
+    /// </summary>
+    public double MapKpaPerCount { get; set; } = 0.97;
+
     // Параметри лінії / протоколу
     public string? Port { get; set; }
     public bool Invert { get; set; }
