@@ -8,7 +8,7 @@ public enum IconKind
 {
     None, Add, Cancel, Filter, Refresh, Star, StarFilled, Check, Delete, Save, Play, Stop,
     ChevronLeft, ChevronRight, ChevronDown, Latest, Car, Compare, Import, Open, Report, Table, Copy,
-    Minimize, Maximize, Restore, Close
+    Minimize, Maximize, Restore, Close, Sun, Contrast, Moon
 }
 
 /// <summary>
@@ -86,6 +86,10 @@ public sealed class VectorIcon : FrameworkElement
         [IconKind.Maximize] = (G("M3.5,3.5 H12.5 V12.5 H3.5 Z"), false),
         [IconKind.Restore] = (G("M3.5,5.5 H10.5 V12.5 H3.5 Z M5.5,5.5 V3.5 H12.5 V10.5 H10.5"), false),
         [IconKind.Close] = (G("M3,3 L13,13 M13,3 L3,13"), false),
+        [IconKind.Sun] = (G("M8,5 A3,3 0 1 1 8,11 A3,3 0 1 1 8,5 Z M8,1.5 V3 M8,13 V14.5 M1.5,8 H3 M13,8 H14.5 M3.4,3.4 L4.4,4.4 M11.6,11.6 L12.6,12.6 M3.4,12.6 L4.4,11.6 M11.6,4.4 L12.6,3.4"), false),
+        // Кільце з залитою правою половиною (контраст): EvenOdd — внутрішня ліва половина лишається порожньою
+        [IconKind.Contrast] = (G("F0 M8,1.5 A6.5,6.5 0 1 1 8,14.5 A6.5,6.5 0 1 1 8,1.5 Z M8,3 A5,5 0 0 0 8,13 Z"), true),
+        [IconKind.Moon] = (G("M10.5,2 A6,6 0 1 0 14,10.5 A4.8,4.8 0 0 1 10.5,2 Z"), false),
     };
 
     private const string StarPath =

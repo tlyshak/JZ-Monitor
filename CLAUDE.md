@@ -29,7 +29,8 @@ src/JzMonitor/                 WPF app (.NET 10, net10.0-windows), no NuGet pack
   ViewModels/, Controls/       MVVM (hand-written ObservableObject/RelayCommand), chart control
   Controls/CaptionButtons      min/max/close for windows with an own title bar (WindowChrome): main, Compare, Report
   Controls/VectorIcon.cs       vector icons (IconKind) — no icon font, Segoe MDL2 Assets is missing on Windows 7
-  Themes/Light.xaml            the only theme: palette, control styles (all colors live here)
+  Themes/Theme.xaml            control styles; colors via DynamicResource from the palette
+  Themes/Palette.{Light,Medium,Dark}.xaml   palettes with the same keys; ThemeManager swaps them at runtime
   Assets/JzMonitor.ico         app + window icon (orange "JZ" tile, 16–256 px)
 tests/JzMonitor.Tests/         xUnit (synthetic signals, a synthetic CarTester-style .ctr)
 docs/PROTOCOL.md               protocol, .ctr spec, verified points, what the original hid
@@ -73,7 +74,10 @@ dotnet-tools.json              local tool: wix 5.0.2 (build-time only; keep v5 �
 9. **Language.** UI text is **English** — short, plain labels (engine/automotive terms as on
    a scan tool). Code comments and `docs/` are Ukrainian. Identifiers are English.
    Keep comment density as in the surrounding code.
-10. **Design.** Light theme only, defined in `Themes/Light.xaml` — use its brushes and styles
+10. **Design.** Three themes — Light (default), Medium (for sunlight), Dark — switched from the top bar.
+   Styles live in `Themes/Theme.xaml`, colors in `Themes/Palette.*.xaml` (same keys in all three). Reference
+   theme brushes with **DynamicResource** (StaticResource breaks runtime switching); colors drawn in code
+   (chart) come from the palette via `TryFindResource` and redraw on `ThemeManager.Changed`. Use its brushes and styles
    (`Card`, `AccentButton`, `GhostButton`, `Caption`, `SectionTitle`, …), no hard-coded colors
    in views except the status tints already used in `MainWindow.xaml`.
 

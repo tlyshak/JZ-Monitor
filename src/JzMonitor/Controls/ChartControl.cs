@@ -144,6 +144,9 @@ public sealed class ChartControl : FrameworkElement
         Cursor = Cursors.Arrow;
         _alertTip.PlacementTarget = this;
         AddVisualChild(_overlay);
+        // Тема змінилась — кольори тла/сітки/підписів інші: перемалювати
+        Loaded += (_, _) => ThemeManager.Changed += OnThemeChanged;
+        Unloaded += (_, _) => ThemeManager.Changed -= OnThemeChanged;
     }
 
     /// <summary>
@@ -154,6 +157,12 @@ public sealed class ChartControl : FrameworkElement
     private readonly System.Windows.Controls.ToolTip _alertTip = new() { Placement = System.Windows.Controls.Primitives.PlacementMode.Relative };
 
     /// <summary>Над знаком «!», його лінією або тлом відрізка — підказка, що спрацювало; деінде — закрита.</summary>
+    private void OnThemeChanged()
+    {
+        _legendH = -1; // змусити повне перемальовування (і верхнього шару)
+        InvalidateVisual();
+    }
+
     private void UpdateAlertTip(Point p)
     {
         var hit = AlertsAt(p);
@@ -197,13 +206,16 @@ public sealed class ChartControl : FrameworkElement
 
     private static readonly Typeface Face = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
     private static readonly Typeface AxisFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-    private static readonly Brush Back = Frozen(new SolidColorBrush(Color.FromRgb(0xFB, 0xFC, 0xFD)));
-    private static readonly Pen Grid = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0xE9, 0xED, 0xF2)), 1));
-    private static readonly Brush Dim = Frozen(new SolidColorBrush(Color.FromRgb(0x6B, 0x76, 0x86)));
-    private static readonly Pen CursorPen = Frozen(new Pen(new SolidColorBrush(Color.FromArgb(0x99, 0x1D, 0x24, 0x30)), 1) { DashStyle = DashStyles.Dash });
+    // Кольори теми (тло, сітка, підписи, курсор, притемнення) — з палітри поточної теми (Themes/Palette.*.xaml);
+    // при перемиканні теми графік перемальовується (ThemeManager.Changed)
+    private Brush Back => ThemeBrush("ChartBack", Color.FromRgb(0xFB, 0xFC, 0xFD));
+    private Brush Dim => ThemeBrush("TextDim", Color.FromRgb(0x6B, 0x76, 0x86));
+    private Brush OutsideFill => ThemeBrush("ChartOutside", Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF));
+    private Pen Grid => Frozen(new Pen(ThemeBrush("ChartGrid", Color.FromRgb(0xE9, 0xED, 0xF2)), 1));
+    private Pen CursorPen => Frozen(new Pen(ThemeBrush("ChartCursor", Color.FromArgb(0x99, 0x1D, 0x24, 0x30)), 1) { DashStyle = DashStyles.Dash });
+    private Brush ThemeBrush(string key, Color fallback) => TryFindResource(key) as Brush ?? BrushOf(fallback);
     private static readonly Brush SelectionFill = Frozen(new SolidColorBrush(Color.FromArgb(0x26, 0xF2, 0x6B, 0x1D)));
     private static readonly Pen SelectionEdge = Frozen(new Pen(new SolidColorBrush(Color.FromArgb(0xAA, 0xF2, 0x6B, 0x1D)), 1));
-    private static readonly Brush OutsideFill = Frozen(new SolidColorBrush(Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF)));
     private static readonly Pen RangeEdge = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0xF2, 0x6B, 0x1D)), 1.5));
     private static readonly Brush MarkFill = Frozen(new SolidColorBrush(Color.FromRgb(0xC9, 0x8A, 0x00)));
     private static readonly Pen MarkPen = Frozen(new Pen(new SolidColorBrush(Color.FromArgb(0x80, 0xC9, 0x8A, 0x00)), 1));

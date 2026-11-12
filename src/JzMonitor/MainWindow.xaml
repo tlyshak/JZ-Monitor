@@ -5,7 +5,7 @@
         xmlns:c="clr-namespace:JzMonitor.Controls"
         Title="{Binding Title}" Height="920" Width="1440" MinWidth="1100" MinHeight="760"
         WindowStartupLocation="CenterScreen" WindowState="Maximized"
-        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        Background="{DynamicResource Bg}" Foreground="{DynamicResource Text}"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
     <!-- Власний заголовок: верхній рядок програми — це і є заголовок вікна (перетягування, подвійний клік) -->
@@ -33,22 +33,22 @@
                     <StackPanel Grid.Row="1" Margin="0,2,0,6">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding Text}" FontSize="26" FontWeight="Normal"/>
-                            <TextBlock Text="{Binding Unit}" Foreground="{StaticResource TextDim}" FontSize="12"
+                            <TextBlock Text="{Binding Unit}" Foreground="{DynamicResource TextDim}" FontSize="12"
                                        VerticalAlignment="Bottom" Margin="5,0,0,5"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" ToolTip="This session, engine running">
                             <TextBlock Text="MIN" Style="{StaticResource Caption}" FontSize="9" Margin="0,0,4,0"
                                        Visibility="{Binding ShowMin, Converter={StaticResource BoolToVis}}"/>
-                            <TextBlock Text="{Binding MinText}" Foreground="{StaticResource TextDim}" FontSize="11" FontWeight="SemiBold" Margin="0,0,12,0"
+                            <TextBlock Text="{Binding MinText}" Foreground="{DynamicResource TextDim}" FontSize="11" FontWeight="SemiBold" Margin="0,0,12,0"
                                        Visibility="{Binding ShowMin, Converter={StaticResource BoolToVis}}"/>
                             <TextBlock Text="MAX" Style="{StaticResource Caption}" FontSize="9" Margin="0,0,4,0"
                                        Visibility="{Binding ShowMax, Converter={StaticResource BoolToVis}}"/>
-                            <TextBlock Text="{Binding MaxText}" Foreground="{StaticResource TextDim}" FontSize="11" FontWeight="SemiBold"
+                            <TextBlock Text="{Binding MaxText}" Foreground="{DynamicResource TextDim}" FontSize="11" FontWeight="SemiBold"
                                        Visibility="{Binding ShowMax, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </StackPanel>
                     <Grid Grid.Row="2" Height="3">
-                        <Border CornerRadius="2" Background="{StaticResource Panel3}"/>
+                        <Border CornerRadius="2" Background="{DynamicResource Panel3}"/>
                         <Border CornerRadius="2" Background="{Binding Accent}" RenderTransformOrigin="0,0.5">
                             <Border.RenderTransform>
                                 <ScaleTransform ScaleX="{Binding Fraction}"/>
@@ -61,7 +61,7 @@
 
         <!-- Біт стану ECU: рядок таблиці у дві колонки -->
         <DataTemplate x:Key="FlagTemplate">
-            <Border x:Name="Row" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Height="25" Margin="0,0,14,0"
+            <Border x:Name="Row" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Height="25" Margin="0,0,14,0"
                     Padding="2,0" Background="Transparent" ToolTip="{Binding BitLabel, StringFormat='Bit {0}'}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -70,40 +70,40 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Ellipse x:Name="Led" Width="8" Height="8" Fill="#C9D0DA" VerticalAlignment="Center" HorizontalAlignment="Left"/>
-                    <TextBlock Grid.Column="1" Text="{Binding BitLabel}" Foreground="{StaticResource TextDim}" FontFamily="{StaticResource MonoFont}"
+                    <Ellipse x:Name="Led" Width="8" Height="8" Fill="{DynamicResource Muted}" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                    <TextBlock Grid.Column="1" Text="{Binding BitLabel}" Foreground="{DynamicResource TextDim}" FontFamily="{StaticResource MonoFont}"
                                FontSize="10" VerticalAlignment="Center"/>
                     <TextBlock x:Name="Name" Grid.Column="2" Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock x:Name="State" Grid.Column="3" Text="{Binding Text}" Foreground="{StaticResource TextDim}" FontWeight="SemiBold"
+                    <TextBlock x:Name="State" Grid.Column="3" Text="{Binding Text}" Foreground="{DynamicResource TextDim}" FontWeight="SemiBold"
                                FontSize="10" Margin="8,0,0,0" VerticalAlignment="Center"/>
                 </Grid>
             </Border>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding IsOn}" Value="True">
-                    <Setter TargetName="Led" Property="Fill" Value="{StaticResource Ok}"/>
-                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Ok}"/>
+                    <Setter TargetName="Led" Property="Fill" Value="{DynamicResource Ok}"/>
+                    <Setter TargetName="State" Property="Foreground" Value="{DynamicResource Ok}"/>
                 </DataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
                         <Condition Binding="{Binding IsOn}" Value="True"/>
                         <Condition Binding="{Binding IsAlarm}" Value="True"/>
                     </MultiDataTrigger.Conditions>
-                    <Setter TargetName="Led" Property="Fill" Value="{StaticResource Danger}"/>
-                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Danger}"/>
+                    <Setter TargetName="Led" Property="Fill" Value="{DynamicResource Danger}"/>
+                    <Setter TargetName="State" Property="Foreground" Value="{DynamicResource Danger}"/>
                 </MultiDataTrigger>
                 <DataTrigger Binding="{Binding HiddenInOriginal}" Value="True">
-                    <Setter TargetName="Name" Property="Foreground" Value="{StaticResource TextDim}"/>
+                    <Setter TargetName="Name" Property="Foreground" Value="{DynamicResource TextDim}"/>
                     <Setter TargetName="Row" Property="ToolTip" Value="Not shown by CarTester; never set on the reference 2JZ-GTE"/>
                 </DataTrigger>
                 <!-- Попередження: застрягла лямбда, концевик ХХ при закритій заслінці -->
                 <DataTrigger Binding="{Binding Warning}" Value="Warn">
-                    <Setter TargetName="Led" Property="Fill" Value="{StaticResource Caution}"/>
-                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Caution}"/>
+                    <Setter TargetName="Led" Property="Fill" Value="{DynamicResource Caution}"/>
+                    <Setter TargetName="State" Property="Foreground" Value="{DynamicResource Caution}"/>
                     <Setter TargetName="Row" Property="ToolTip" Value="{Binding WarningText}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Warning}" Value="Alarm">
-                    <Setter TargetName="Led" Property="Fill" Value="{StaticResource Danger}"/>
-                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Danger}"/>
+                    <Setter TargetName="Led" Property="Fill" Value="{DynamicResource Danger}"/>
+                    <Setter TargetName="State" Property="Foreground" Value="{DynamicResource Danger}"/>
                     <Setter TargetName="Row" Property="ToolTip" Value="{Binding WarningText}"/>
                 </DataTrigger>
             </DataTemplate.Triggers>
@@ -111,7 +111,7 @@
 
         <!-- Рядок таблиці параметрів (дві колонки) -->
         <DataTemplate x:Key="ParamTemplate">
-            <Border x:Name="Row" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="4,0" Height="27" Margin="0,0,16,0"
+            <Border x:Name="Row" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Padding="4,0" Height="27" Margin="0,0,16,0"
                     Background="Transparent">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -128,20 +128,20 @@
                     <TextBlock x:Name="Name" Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                     <TextBlock Grid.Column="2" Text="{Binding Text}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"
                                ToolTip="{Binding Raw, StringFormat='raw {0}'}"/>
-                    <TextBlock Grid.Column="3" Text="{Binding Unit}" Foreground="{StaticResource TextDim}" Margin="8,0,0,0" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="4" Text="{Binding MinText}" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right"
+                    <TextBlock Grid.Column="3" Text="{Binding Unit}" Foreground="{DynamicResource TextDim}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="4" Text="{Binding MinText}" Foreground="{DynamicResource TextDim}" HorizontalAlignment="Right"
                                VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="Minimum this session (engine running)"/>
-                    <TextBlock Grid.Column="5" Text="{Binding MaxText}" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right"
+                    <TextBlock Grid.Column="5" Text="{Binding MaxText}" Foreground="{DynamicResource TextDim}" HorizontalAlignment="Right"
                                VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="Maximum this session (engine running)"/>
                 </Grid>
             </Border>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding HiddenInOriginal}" Value="True">
-                    <Setter TargetName="Name" Property="Foreground" Value="{StaticResource Warn}"/>
+                    <Setter TargetName="Name" Property="Foreground" Value="{DynamicResource Warn}"/>
                     <Setter TargetName="Row" Property="ToolTip" Value="Not shown by the original CarTester"/>
                 </DataTrigger>
                 <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
-                    <Setter TargetName="Row" Property="Background" Value="#F0F3F7"/>
+                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource RowHover}"/>
                 </Trigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -155,13 +155,13 @@
         </Grid.RowDefinitions>
 
         <!-- ═══ Заголовок (він же заголовок вікна) ═══ -->
-        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+        <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
             <DockPanel>
             <!-- Кнопки вікна -->
             <c:CaptionButtons DockPanel.Dock="Right" Margin="12,0,0,0"/>
             <DockPanel LastChildFill="False" Margin="16,10,0,10">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                    <Border Width="38" Height="38" CornerRadius="9" Background="{StaticResource Accent}">
+                    <Border Width="38" Height="38" CornerRadius="9" Background="{DynamicResource Accent}">
                         <TextBlock Text="JZ" FontWeight="Black" FontSize="16" Foreground="White"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -186,7 +186,7 @@
                     <Button AutomationProperties.Name="Save recording (.ctr)" Style="{StaticResource GhostButton}" Command="{Binding SaveCommand}" ToolTip="Save recording (.ctr)">
                         <c:VectorIcon Kind="Save"/>
                     </Button>
-                    <Rectangle Width="1" Fill="{StaticResource Border}" Margin="8,6"/>
+                    <Rectangle Width="1" Fill="{DynamicResource Border}" Margin="8,6"/>
                     <Button AutomationProperties.Name="Export to CSV (Excel)" Style="{StaticResource GhostButton}" Command="{Binding ExportCsvCommand}" ToolTip="Export to CSV (Excel)">
                         <StackPanel Orientation="Horizontal">
                             <c:VectorIcon Kind="Table"/>
@@ -216,6 +216,11 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <!-- Тема: світла / середня (для сонця) / темна -->
+                    <Button AutomationProperties.Name="Switch theme" Style="{StaticResource GhostButton}" Command="{Binding NextThemeCommand}"
+                            ToolTip="{Binding ThemeTip}" Margin="0,0,14,0">
+                        <c:VectorIcon Kind="{Binding ThemeIcon}"/>
+                    </Button>
                     <TextBlock Text="PORT" Style="{StaticResource Caption}" Margin="0,0,8,0"/>
                     <ComboBox Width="96" ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort}"
                               IsEnabled="{Binding IsRunning, Converter={x:Static c:Inverse.Bool}}"/>
@@ -235,24 +240,24 @@
                             VerticalAlignment="Center" MinWidth="100" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
                         <Border.Style>
                             <Style TargetType="Border">
-                                <Setter Property="Background" Value="{StaticResource Panel2}"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
-                                <Setter Property="Tag" Value="{StaticResource TextDim}"/>
+                                <Setter Property="Background" Value="{DynamicResource Panel2}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
+                                <Setter Property="Tag" Value="{DynamicResource TextDim}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Link}" Value="Live">
                                         <Setter Property="Background" Value="#1418A866"/>
                                         <Setter Property="BorderBrush" Value="#6618A866"/>
-                                        <Setter Property="Tag" Value="{StaticResource Ok}"/>
+                                        <Setter Property="Tag" Value="{DynamicResource Ok}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Link}" Value="Waiting">
                                         <Setter Property="Background" Value="#14C98A00"/>
                                         <Setter Property="BorderBrush" Value="#66C98A00"/>
-                                        <Setter Property="Tag" Value="{StaticResource Warn}"/>
+                                        <Setter Property="Tag" Value="{DynamicResource Warn}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Link}" Value="Errors">
                                         <Setter Property="Background" Value="#14E5484D"/>
                                         <Setter Property="BorderBrush" Value="#66E5484D"/>
-                                        <Setter Property="Tag" Value="{StaticResource Danger}"/>
+                                        <Setter Property="Tag" Value="{DynamicResource Danger}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -288,9 +293,9 @@
                                     <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding RangePanelOpen}" Value="True">
-                                                <Setter Property="Background" Value="{StaticResource Panel2}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
-                                                <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                                                <Setter Property="Background" Value="{DynamicResource Panel2}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -306,8 +311,8 @@
                                     </StackPanel>
                                 </Grid>
                             </Button>
-                            <Border CornerRadius="9" Padding="10,2,4,2" Margin="0,0,10,0" Background="{StaticResource Panel2}"
-                                    BorderBrush="{StaticResource Border}" BorderThickness="1" VerticalAlignment="Center"
+                            <Border CornerRadius="9" Padding="10,2,4,2" Margin="0,0,10,0" Background="{DynamicResource Panel2}"
+                                    BorderBrush="{DynamicResource Border}" BorderThickness="1" VerticalAlignment="Center"
                                     Visibility="{Binding IsRangeSet, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{Binding RangeInfo}" Style="{StaticResource Caption}" FontWeight="Normal" VerticalAlignment="Center"/>
@@ -320,13 +325,13 @@
                             <StackPanel Orientation="Horizontal" Visibility="{Binding HasMarks, Converter={StaticResource BoolToVis}}">
                                 <Button AutomationProperties.Name="Previous marked frame" Style="{StaticResource GhostButton}" Command="{Binding PrevMarkCommand}"
                                         ToolTip="Previous marked frame" Padding="4,6">
-                                    <c:VectorIcon Kind="ChevronLeft" Size="10" Foreground="{StaticResource Warn}"/>
+                                    <c:VectorIcon Kind="ChevronLeft" Size="10" Foreground="{DynamicResource Warn}"/>
                                 </Button>
-                                <TextBlock Text="{Binding MarkCount}" Foreground="{StaticResource Warn}" FontWeight="SemiBold" VerticalAlignment="Center"
+                                <TextBlock Text="{Binding MarkCount}" Foreground="{DynamicResource Warn}" FontWeight="SemiBold" VerticalAlignment="Center"
                                            ToolTip="Marked frames in the recording"/>
                                 <Button AutomationProperties.Name="Next marked frame" Style="{StaticResource GhostButton}" Command="{Binding NextMarkCommand}"
                                         ToolTip="Next marked frame" Padding="4,6">
-                                    <c:VectorIcon Kind="ChevronRight" Size="10" Foreground="{StaticResource Warn}"/>
+                                    <c:VectorIcon Kind="ChevronRight" Size="10" Foreground="{DynamicResource Warn}"/>
                                 </Button>
                             </StackPanel>
                             <Button AutomationProperties.Name="Mark / unmark this frame" Style="{StaticResource GhostButton}" Command="{Binding ToggleMarkCommand}" ToolTip="Mark / unmark this frame">
@@ -337,7 +342,7 @@
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding FrameMarked}" Value="True">
                                                     <Setter Property="Kind" Value="StarFilled"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource Warn}"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource Warn}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -360,8 +365,8 @@
                         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="12,0,16,0" VerticalAlignment="Center">
                             <TextBlock Text="{Binding FrameNumber, StringFormat='Frame {0}'}" FontWeight="SemiBold"/>
                             <TextBlock Text="{Binding FrameTime}" Style="{StaticResource Caption}" FontWeight="Normal" Margin="12,0,0,0"/>
-                            <Border CornerRadius="9" Padding="8,2" Margin="12,0,0,0" Background="{StaticResource Panel2}"
-                                    BorderBrush="{StaticResource Border}" BorderThickness="1" VerticalAlignment="Center"
+                            <Border CornerRadius="9" Padding="8,2" Margin="12,0,0,0" Background="{DynamicResource Panel2}"
+                                    BorderBrush="{DynamicResource Border}" BorderThickness="1" VerticalAlignment="Center"
                                     Visibility="{Binding EngineOff, Converter={StaticResource BoolToVis}}"
                                     ToolTip="RPM is 0 in this frame — injection time and ignition advance are not meaningful and are hidden">
                                 <TextBlock Text="ENGINE OFF" Style="{StaticResource Caption}" FontSize="10"/>
@@ -474,7 +479,7 @@
                                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ByteCount}" Margin="0,8,0,0"/>
                                         <TextBlock Grid.Row="2" Text="DATA" Style="{StaticResource FieldLabel}" Margin="0,8,10,0" VerticalAlignment="Top"/>
                                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HexInfo}" FontFamily="{StaticResource MonoFont}"
-                                                   TextWrapping="Wrap" MaxWidth="250" HorizontalAlignment="Left" Margin="0,8,0,0" Foreground="{StaticResource Accent}"/>
+                                                   TextWrapping="Wrap" MaxWidth="250" HorizontalAlignment="Left" Margin="0,8,0,0" Foreground="{DynamicResource Accent}"/>
                                     </Grid>
                                 </StackPanel>
                                 <DockPanel Grid.Column="2">

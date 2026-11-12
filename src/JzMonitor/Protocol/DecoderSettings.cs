@@ -48,6 +48,9 @@ public sealed class DecoderSettings
 
     /// <summary>Показувати застряглу лямбду вже від 10 с (за замовчуванням — від 20 с).</summary>
     public bool ShowShortO2Stuck { get; set; }
+
+    /// <summary>Тема інтерфейсу: Light (за замовчуванням), Medium (для сонця), Dark.</summary>
+    public string Theme { get; set; } = "Light";
     /// <summary>Показувати «концевик ХХ розімкнений при дроселі 0» вже понад 2 с (за замовчуванням — понад 5 с).</summary>
     public bool ShowShortIdlMismatch { get; set; }
 

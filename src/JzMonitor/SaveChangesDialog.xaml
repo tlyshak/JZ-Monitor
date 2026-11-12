@@ -6,10 +6,10 @@
         Title="Save changes?" Width="460" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13"
+        Foreground="{DynamicResource Text}" FontFamily="Segoe UI" FontSize="13"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
     <!-- Відступ під тінь -->
-    <Border Margin="16" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+    <Border Margin="16" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Border}" BorderThickness="1"
             CornerRadius="12" MouseLeftButtonDown="Drag">
         <Border.Effect>
             <DropShadowEffect BlurRadius="24" ShadowDepth="4" Direction="270" Opacity="0.18" Color="#1D2430"/>
@@ -17,16 +17,16 @@
         <StackPanel Margin="24,22,24,20">
             <DockPanel>
                 <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="20" Background="#1AF26B1D" VerticalAlignment="Top">
-                    <c:VectorIcon Kind="Save" Size="18" Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <c:VectorIcon Kind="Save" Size="18" Foreground="{DynamicResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <StackPanel Margin="14,0,0,0">
                     <TextBlock Text="Save changes?" FontSize="17" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="Reason" Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="Reason" Foreground="{DynamicResource TextDim}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                 </StackPanel>
             </DockPanel>
 
             <!-- Підсумок запису -->
-            <Border Background="{StaticResource Panel2}" CornerRadius="8" Padding="14,10" Margin="0,18,0,0">
+            <Border Background="{DynamicResource Panel2}" CornerRadius="8" Padding="14,10" Margin="0,18,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>

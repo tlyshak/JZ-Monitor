@@ -5,7 +5,7 @@
         xmlns:c="clr-namespace:JzMonitor.Controls"
         Title="Recording report" Height="860" Width="820" MinWidth="680" MinHeight="500"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        Background="{DynamicResource Bg}" Foreground="{DynamicResource Text}"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
     <!-- Власний заголовок, як у головному вікні: верхній рядок — заголовок вікна -->
@@ -17,7 +17,7 @@
     <Window.Resources>
         <!-- Рядок звіту: назва, цей запис, еталон, різниця, одиниця; заголовок групи — окремо -->
         <DataTemplate x:Key="RowTemplate">
-            <Border x:Name="Row" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" MinHeight="27" Padding="4,0">
+            <Border x:Name="Row" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" MinHeight="27" Padding="4,0">
                 <StackPanel VerticalAlignment="Center">
                 <Grid MinHeight="26">
                     <Grid.ColumnDefinitions>
@@ -29,9 +29,9 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="Name" Text="{Binding Name}" VerticalAlignment="Center"/>
                     <TextBlock x:Name="This" Grid.Column="1" Text="{Binding This}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="2" Text="{Binding Reference}" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="Delta" Grid.Column="3" Text="{Binding Delta}" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="4" Text="{Binding Unit}" Foreground="{StaticResource TextDim}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{Binding Reference}" Foreground="{DynamicResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="Delta" Grid.Column="3" Text="{Binding Delta}" Foreground="{DynamicResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="4" Text="{Binding Unit}" Foreground="{DynamicResource TextDim}" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </Grid>
                 <!-- Де саме: відрізки кадрів, клік — перейти в головному вікні -->
                 <WrapPanel Margin="12,0,0,6" Visibility="{Binding HasLinks, Converter={StaticResource BoolToVis}}">
@@ -46,7 +46,7 @@
                             <DataTemplate>
                                 <Button Command="{Binding Command}" Style="{StaticResource GhostButton}" Padding="4,0" Margin="0,0,2,0"
                                         Cursor="Hand" ToolTip="Show this place in the main window">
-                                    <TextBlock Text="{Binding Label}" Foreground="{StaticResource Accent}" FontSize="11" TextDecorations="Underline"/>
+                                    <TextBlock Text="{Binding Label}" Foreground="{DynamicResource Accent}" FontSize="11" TextDecorations="Underline"/>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -63,10 +63,10 @@
                     <Setter TargetName="Name" Property="VerticalAlignment" Value="Bottom"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Attention}" Value="True">
-                    <Setter TargetName="This" Property="Foreground" Value="{StaticResource Caution}"/>
+                    <Setter TargetName="This" Property="Foreground" Value="{DynamicResource Caution}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Deviates}" Value="True">
-                    <Setter TargetName="Delta" Property="Foreground" Value="{StaticResource Caution}"/>
+                    <Setter TargetName="Delta" Property="Foreground" Value="{DynamicResource Caution}"/>
                     <Setter TargetName="Delta" Property="FontWeight" Value="SemiBold"/>
                     <Setter TargetName="Row" Property="ToolTip" Value="Differs from the reference more than usual"/>
                 </DataTrigger>
@@ -76,11 +76,11 @@
 
     <DockPanel>
         <!-- ═══ Заголовок ═══ -->
-        <Border DockPanel.Dock="Top" Height="44" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+        <Border DockPanel.Dock="Top" Height="44" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
             <DockPanel>
                 <c:CaptionButtons DockPanel.Dock="Right"/>
                 <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                    <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Accent}">
+                    <Border Width="26" Height="26" CornerRadius="7" Background="{DynamicResource Accent}">
                         <TextBlock Text="JZ" FontWeight="Black" FontSize="11" Foreground="White"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>

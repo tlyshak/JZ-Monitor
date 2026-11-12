@@ -37,7 +37,7 @@ Spec: `docs/PROTOCOL.md`.
      event (see `CLAUDE.md` rule 6) — never block the UI thread on the port.
    - **Parameter keys.** Respect the prefixes in `CLAUDE.md` (`f…` flags, `b…` extra bytes);
      code filters by them.
-   - **UI:** English labels, light theme — styles and brushes from `Themes/Light.xaml`, no new
+   - **UI:** English labels, three themes — styles from `Themes/Theme.xaml`, brushes from `Themes/Palette.*.xaml` via DynamicResource, no new
      hard-coded colors. Input line is DSR only; V6 right-bank data stays out.
    - **Comments in Ukrainian**, identifiers in English.
 4. General quality:

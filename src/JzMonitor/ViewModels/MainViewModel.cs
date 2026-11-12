@@ -131,6 +131,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public MainViewModel()
     {
         Settings = DecoderSettings.Load();
+        if (Enum.TryParse<AppTheme>(Settings.Theme, out var theme) && theme != AppTheme.Light) ApplyTheme(theme);
         _rec = new LogRecording { Vehicle = DefaultVehicle() };
         ApplyAssemblerSettings();
         _assembler.FrameCompleted += OnFrame;
@@ -138,6 +139,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         TryLoadDefaultVehicle();
 
         RefreshPortsCommand = new RelayCommand(RefreshPorts, () => !IsRunning);
+        NextThemeCommand = new RelayCommand(NextTheme);
         StartCommand = new RelayCommand(StartStop, () => IsRunning || !string.IsNullOrEmpty(Settings.Port));
         NewCommand = new RelayCommand(New, () => !IsRunning);
         OpenCommand = new RelayCommand(Open, () => !IsRunning);
@@ -171,6 +173,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     public RelayCommand RefreshPortsCommand { get; }
+    public RelayCommand NextThemeCommand { get; }
     public RelayCommand StartCommand { get; }
     public RelayCommand NewCommand { get; }
     public RelayCommand OpenCommand { get; }
@@ -207,6 +210,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
     public string StartText => IsRunning ? "Stop" : "Connect";
     public IconKind StartIcon => IsRunning ? IconKind.Stop : IconKind.Play;
+
+    // ── Тема: Light → Medium → Dark → Light (кнопка у верхньому рядку), запам'ятовується в налаштуваннях ──
+    public IconKind ThemeIcon => ThemeManager.Current switch { AppTheme.Medium => IconKind.Contrast, AppTheme.Dark => IconKind.Moon, _ => IconKind.Sun };
+    public string ThemeTip => $"Theme: {ThemeManager.Current} — click to switch (Light / Medium for sunlight / Dark)";
+
+    private void ApplyTheme(AppTheme theme)
+    {
+        ThemeManager.Apply(theme);
+        OnPropertyChanged(nameof(ThemeIcon));
+        OnPropertyChanged(nameof(ThemeTip));
+    }
+
+    private void NextTheme()
+    {
+        var next = (AppTheme)(((int)ThemeManager.Current + 1) % 3);
+        ApplyTheme(next);
+        Settings.Theme = next.ToString();
+        Settings.Save();
+    }
 
     private LinkState _link = LinkState.Offline;
     public LinkState Link { get => _link; private set { if (Set(ref _link, value)) OnPropertyChanged(nameof(LinkText)); } }

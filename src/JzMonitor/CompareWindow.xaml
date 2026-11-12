@@ -5,7 +5,7 @@
         xmlns:c="clr-namespace:JzMonitor.Controls"
         Title="Compare recordings" Height="900" Width="1360" MinWidth="1000" MinHeight="700"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        Background="{DynamicResource Bg}" Foreground="{DynamicResource Text}"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
     <!-- Власний заголовок, як у головному вікні: верхній рядок — заголовок вікна -->
@@ -44,7 +44,7 @@
                         <Button Content="Apply" AutomationProperties.Name="{Binding Label, StringFormat=Apply {0}}" Command="{Binding ApplyCommand}" Margin="8,0,6,0" Style="{StaticResource AccentButton}"/>
                         <Button Content="Full" Command="{Binding FullCommand}" Margin="0"/>
                     </StackPanel>
-                    <TextBlock Text="{Binding Error}" Foreground="{StaticResource Danger}" FontSize="11" Margin="0,6,0,0"
+                    <TextBlock Text="{Binding Error}" Foreground="{DynamicResource Danger}" FontSize="11" Margin="0,6,0,0"
                                Visibility="{Binding Error, Converter={x:Static c:Inverse.EmptyToCollapsed}}"/>
                 </StackPanel>
             </Border>
@@ -52,7 +52,7 @@
 
         <!-- Рядок таблиці: параметр, A, B, різниця, статистика -->
         <DataTemplate x:Key="RowTemplate">
-            <Border BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Height="28" Padding="4,0">
+            <Border BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Height="28" Padding="4,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="28"/>
@@ -69,10 +69,10 @@
                     <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="2" Text="{Binding A}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="3" Text="{Binding B}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="4" Text="{Binding Delta}" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="5" Text="{Binding Unit}" Foreground="{StaticResource TextDim}" Margin="10,0,0,0" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="6" Text="{Binding AStats}" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                    <TextBlock Grid.Column="7" Text="{Binding BStats}" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                    <TextBlock Grid.Column="4" Text="{Binding Delta}" Foreground="{DynamicResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="5" Text="{Binding Unit}" Foreground="{DynamicResource TextDim}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="6" Text="{Binding AStats}" Foreground="{DynamicResource TextDim}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                    <TextBlock Grid.Column="7" Text="{Binding BStats}" Foreground="{DynamicResource TextDim}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -80,11 +80,11 @@
 
     <DockPanel>
         <!-- ═══ Заголовок ═══ -->
-        <Border DockPanel.Dock="Top" Height="44" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+        <Border DockPanel.Dock="Top" Height="44" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
             <DockPanel>
                 <c:CaptionButtons DockPanel.Dock="Right"/>
                 <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                    <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Accent}">
+                    <Border Width="26" Height="26" CornerRadius="7" Background="{DynamicResource Accent}">
                         <TextBlock Text="JZ" FontWeight="Black" FontSize="11" Foreground="White"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>

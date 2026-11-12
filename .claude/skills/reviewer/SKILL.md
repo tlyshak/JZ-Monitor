@@ -154,7 +154,7 @@ ship / no-ship recommendation.
 - **Tests.** Is there a test change matching the code change? Expected values come from
   evidence, not from the implementation? Deterministic (seeded `Random`, no wall clock)?
 - **UI design & text.** English labels, short and consistent with the rest; colors and styles
-  from `Themes/Light.xaml` (no stray hard-coded colors); layout holds at 1100×700; DSR is the
+  from `Themes/Theme.xaml` / `Themes/Palette.*.xaml` via DynamicResource (no stray hard-coded colors; check all three themes); layout holds at 1100×700; DSR is the
   only input line; no V6 right-bank data.
 
 ## Seams of the change (highest-value hunting grounds)

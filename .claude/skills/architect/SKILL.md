@@ -123,7 +123,7 @@ When choosing the Recommended approach, weigh these and record the outcome in th
   verified formula. New interpretations are opt-in or clearly labelled.
 - **Format compatibility.** `.ctr` is the only recording format and must stay readable by the
   original CarTester; anything it cannot hold goes to CSV export.
-- **Design.** Light theme from `Themes/Light.xaml`; English UI labels; DSR is the only input
+- **Design.** Themes from `Themes/Theme.xaml` + `Themes/Palette.*.xaml` (Light / Medium / Dark, DynamicResource); English UI labels; DSR is the only input
   line; no V6 right-bank data.
 - **Reader thread.** Keep it minimal: timestamp, level, push to the assembler. Everything
   else on the UI thread or a background task.
