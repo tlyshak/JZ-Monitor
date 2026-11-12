@@ -329,7 +329,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void UpdateMarks()
     {
         int n = _rec.Frames.Count;
-        string sig = $"{_marksVersion}:{n}:{ChartStart}:{ChartStep}:{RangeHi}:{_overviewStep}";
+        // Пороги перевірок із Setup теж у підписі — інакше знаки «!» не оновлюються, доки файл не відкрити знову
+        string sig = $"{_marksVersion}:{n}:{ChartStart}:{ChartStep}:{RangeHi}:{_overviewStep}:{Settings.ShowShortO2Stuck}:{Settings.ShowShortIdlMismatch}";
         if (sig == _marksSig) return;
         _marksSig = sig;
         var marked = new List<int>();
