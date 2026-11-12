@@ -10,7 +10,7 @@
     <Window.Resources>
         <!-- Плитка параметра (компактна, 8 в ряд) -->
         <DataTemplate x:Key="TileTemplate">
-            <Border Style="{StaticResource Card}" Margin="0,0,10,0" Padding="14,10,14,12">
+            <Border Style="{StaticResource Card}" Margin="0,0,6,0" Padding="14,10,14,12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -24,7 +24,7 @@
                     </DockPanel>
                     <StackPanel Grid.Row="1" Margin="0,2,0,6">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding Text}" FontSize="26" FontWeight="Light"/>
+                            <TextBlock Text="{Binding Text}" FontSize="26" FontWeight="Normal"/>
                             <TextBlock Text="{Binding Unit}" Foreground="{StaticResource TextDim}" FontSize="12"
                                        VerticalAlignment="Bottom" Margin="5,0,0,5"/>
                         </StackPanel>
@@ -232,7 +232,7 @@
         </Border>
 
         <!-- ═══ Основна область ═══ -->
-        <Grid Grid.Row="1" Margin="16,14,16,4">
+        <Grid Grid.Row="1" Margin="16,8,16,2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" MinHeight="220"/>
                 <RowDefinition Height="Auto"/>
@@ -345,7 +345,7 @@
             </Border>
 
             <!-- Плитки — один ряд -->
-            <ItemsControl Grid.Row="1" ItemsSource="{Binding Tiles}" ItemTemplate="{StaticResource TileTemplate}" Margin="0,12,-10,12">
+            <ItemsControl Grid.Row="1" ItemsSource="{Binding Tiles}" ItemTemplate="{StaticResource TileTemplate}" Margin="0,6,-6,6">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <UniformGrid Rows="1"/>
@@ -357,7 +357,7 @@
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="4*" MinWidth="330"/>
-                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="6"/>
                     <ColumnDefinition Width="7*"/>
                 </Grid.ColumnDefinitions>
 
@@ -551,7 +551,7 @@
         </Grid>
 
         <!-- ═══ Рядок стану ═══ -->
-        <DockPanel Grid.Row="2" Margin="16,4,16,10">
+        <DockPanel Grid.Row="2" Margin="16,3,16,6">
             <TextBlock DockPanel.Dock="Right" Text="{Binding LineStats}" Style="{StaticResource Caption}" FontWeight="Normal"/>
             <TextBlock DockPanel.Dock="Right" Text="{Binding Counters}" Style="{StaticResource Caption}" FontWeight="Normal" Margin="0,0,24,0"/>
             <TextBlock Text="{Binding Status}" Style="{StaticResource Caption}" FontWeight="Normal" TextTrimming="CharacterEllipsis"/>

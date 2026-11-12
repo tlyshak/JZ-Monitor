@@ -49,7 +49,8 @@ public sealed class ParamRow : ObservableObject
     public bool ShowMax => !IsFlag && !IsTrip && !NoMaxKeys.Contains(Key);
     /// <summary>Підсумок поїздки (накопичувальне значення, не з кадру).</summary>
     public bool IsTrip => Key.StartsWith("trip_");
-    public bool Chartable => !IsTrip;
+    /// <summary>З підсумків поїздки на графік можна вивести лише середню витрату.</summary>
+    public bool Chartable => !IsTrip || Key == "trip_avg";
 
     private static readonly HashSet<string> MinKeys = ["inj", "ign", "iac"];
     // ISCV — лише MIN; витрата на 100 км біля нуля швидкості дає абсурдні числа — без MAX
@@ -72,7 +73,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     ];
 
     /// <summary>Параметри, що показуються великими плитками.</summary>
-    private static readonly string[] TileKeys = ["rpm", "ect", "air", "inj", "ign", "tps", "iac", "spd"];
+    private static readonly string[] TileKeys = ["rpm", "ect", "air", "inj", "ign", "tps", "iac", "spd", "trip_avg"];
 
     private static readonly Brush AccentBrush = Freeze(Color.FromRgb(0xF2, 0x6B, 0x1D));
     private static readonly Brush ColdBrush = Freeze(Color.FromRgb(0x1E, 0x88, 0xE5));
@@ -371,6 +372,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // остання точка огляду покриває хвіст запису до кінця
         int last = b >= (n - 1) / _overviewStep ? n - 1 : Math.Min(b * _overviewStep, n - 1);
         SetRange(new FrameRange(Math.Min(a * _overviewStep, n - 1), last));
+        ShowRangeTotals();
     }
 
     /// <summary>Shift + перетягування по графіку — новий діапазон.</summary>
@@ -379,6 +381,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         int n = _rec.Frames.Count;
         if (n == 0) return;
         SetRange(new FrameRange(Math.Clamp(ChartStart + a * ChartStep, 0, n - 1), Math.Clamp(ChartStart + b * ChartStep, 0, n - 1)));
+        ShowRangeTotals();
+    }
+
+    /// <summary>
+    /// Після вибору діапазону мишею курсор — на останній кадр діапазону: підсумки поїздки (паливо, відстань,
+    /// середня витрата) на плитках і в таблиці одразу показують увесь вибраний відрізок.
+    /// </summary>
+    private void ShowRangeTotals()
+    {
+        Follow = false;
+        CurrentIndex = RangeHi;
     }
 
     public string Title => "JZ Monitor" + (_rec.Source != null ? " — " + Path.GetFileName(_rec.Source) : "") + (_dirty ? " •" : "");
@@ -803,7 +816,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
         foreach (var (key, name, unit) in TripRows)
         {
-            var row = new ParamRow { Key = key, Name = name, Unit = unit };
+            // Окремий колір (коричневий), щоб лінія середньої витрати не збігалася з параметрами з палітри
+            var row = new ParamRow { Key = key, Name = name, Unit = unit, Color = Color.FromRgb(0x8D, 0x5A, 0x3C) };
+            if (row.Chartable)
+            {
+                row.Charted = charted.Contains(key);
+                row.ChartedChanged += UpdateChart;
+            }
             Parameters.Add(row);
             Analog.Add(row);
         }
@@ -814,9 +833,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private static readonly (string Key, string Name, string Unit)[] TripRows =
     [
+        ("trip_avg", "Trip average", "L/100km"),
         ("trip_fuel", "Trip fuel used", "L"),
         ("trip_dist", "Trip distance", "km"),
-        ("trip_avg", "Trip average", "L/100km"),
         ("trip_time", "Trip engine time", ""),
     ];
 
@@ -834,8 +853,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _ => TimeSpan.FromSeconds(t.EngineSeconds).ToString(t.EngineSeconds >= 3600 ? @"h\:mm\:ss" : @"m\:ss")
             };
             row.Raw = "";
+            if (row.Key == "trip_avg")
+            {
+                // Плитка: шкала 0–40 л/100км; колір — до 10 зелений, далі плавно: 15 світло-зелений,
+                // 20 жовтий, 25 помаранчевий, від 30 червоний
+                double? avg = any ? t.AverageL100 : null;
+                row.Fraction = avg is double a ? Math.Clamp(a / TripAvgTileMax, 0, 1) : 0;
+                row.Accent = avg is double b ? HeatBrush(b, TripAvgOk, TripAvgLimit) : OkBrush;
+            }
         }
     }
+
+    private const double TripAvgTileMax = 40, TripAvgOk = 10, TripAvgLimit = 30;
 
     private void ShowFrame()
     {
@@ -1032,6 +1061,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return OkBrush;
     }
 
+    /// <summary>
+    /// Середня витрата для графіка — як у таблиці (з 0.1 км). На початку поїздки вона стрибає на сотні л/100км,
+    /// тому шкала стала, 0–50 л/100км: більші значення впираються у верх, а не стискають решту лінії.
+    /// </summary>
+    private const double TripAvgChartMax = 50;
+    private static double? ChartTripAvg(TripPoint t) => t.AverageL100;
+
     /// <summary>Скільки точок малює графік щонайбільше; довші діапазони проріджуються.</summary>
     private const int MaxChartPoints = 1500;
     /// <summary>Підпис побудованих серій: якщо не змінився — перебудова не потрібна, рухається лише курсор.</summary>
@@ -1063,12 +1099,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             // одиницю, що дублює назву (RPM / rpm), не показуємо
             Unit = k.Unit.Equals(k.Name, StringComparison.OrdinalIgnoreCase) ? "" : k.Unit,
             Color = k.Color,
-            // Стала шкала — MIN/MAX діапазону перегляду
-            Min = _min.TryGetValue(k.Key, out var mn) ? mn.Value : null,
-            Max = _max.TryGetValue(k.Key, out var mx) ? mx.Value : null,
-            // Впорскування й кут при заглушеному двигуні не мають сенсу — розрив лінії
-            Values = frames.Select(d => d.TryGetValue(k.Key, out var v)
-                && !(RunningOnlyKeys.Contains(k.Key) && d.TryGetValue("rpm", out var r) && r.Value == 0) ? v.Value : null).ToArray()
+            // Стала шкала — MIN/MAX діапазону перегляду (середня витрата — 0–50 л/100км)
+            Min = k.Key == "trip_avg" ? 0 : _min.TryGetValue(k.Key, out var mn) ? mn.Value : null,
+            Max = k.Key == "trip_avg" ? TripAvgChartMax : _max.TryGetValue(k.Key, out var mx) ? mx.Value : null,
+            // Середня витрата — з підсумків поїздки діапазону (точка i = кадр RangeLo + i × step)
+            Values = k.Key == "trip_avg"
+                ? Enumerable.Range(0, frames.Count).Select(i => ChartTripAvg(_trip.At(i * step))).ToArray()
+                // Впорскування й кут при заглушеному двигуні не мають сенсу — розрив лінії
+                : frames.Select(d => d.TryGetValue(k.Key, out var v)
+                    && !(RunningOnlyKeys.Contains(k.Key) && d.TryGetValue("rpm", out var r) && r.Value == 0) ? v.Value : null).ToArray()
         }).ToList();
         OnPropertyChanged(nameof(ChartCursor));
         UpdateMarks();
@@ -1091,14 +1130,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         var frames = Enumerable.Range(0, (n - 1) / step + 1)
             .Select(i => ParameterDecoder.Decode(_rec.Frames[i * step], Settings).ToDictionary(p => p.Key)).ToList();
+        // Середня витрата на огляді — за весь запис від його початку (діапазон тут ще не вибрано)
+        TripMeter? wholeTrip = null;
+        if (keys.Any(k => k.Key == "trip_avg"))
+        {
+            wholeTrip = new TripMeter();
+            foreach (var f in _rec.Frames) wholeTrip.Add(f, Settings);
+        }
         // Шкала огляду — за всім записом (а не за діапазоном), тому Min/Max не задаються
         Overview = keys.Select(k => new ChartSeries
         {
             Name = k.Name,
             Unit = k.Unit.Equals(k.Name, StringComparison.OrdinalIgnoreCase) ? "" : k.Unit,
             Color = k.Color,
-            Values = frames.Select(d => d.TryGetValue(k.Key, out var v)
-                && !(RunningOnlyKeys.Contains(k.Key) && d.TryGetValue("rpm", out var r) && r.Value == 0) ? v.Value : null).ToArray()
+            Min = k.Key == "trip_avg" ? 0 : null,
+            Max = k.Key == "trip_avg" ? TripAvgChartMax : null,
+            Values = k.Key == "trip_avg" && wholeTrip != null
+                ? Enumerable.Range(0, frames.Count).Select(i => ChartTripAvg(wholeTrip.At(i * step))).ToArray()
+                : frames.Select(d => d.TryGetValue(k.Key, out var v)
+                    && !(RunningOnlyKeys.Contains(k.Key) && d.TryGetValue("rpm", out var r) && r.Value == 0) ? v.Value : null).ToArray()
         }).ToList();
         OnPropertyChanged(nameof(OverviewXLabel));
         OnPropertyChanged(nameof(OverviewCursor));
