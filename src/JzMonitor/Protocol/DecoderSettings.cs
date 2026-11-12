@@ -51,6 +51,12 @@ public sealed class DecoderSettings
     /// <summary>Показувати «концевик ХХ розімкнений при дроселі 0» вже понад 2 с (за замовчуванням — понад 5 с).</summary>
     public bool ShowShortIdlMismatch { get; set; }
 
+    /// <summary>
+    /// Опис авто для нових записів (9 полів як у VehicleInfo): останній відомий — з відкритого файлу або вікна
+    /// Vehicle. null — ще не було, береться опис еталонного авто.
+    /// </summary>
+    public string[]? Vehicle { get; set; }
+
     /// <summary>Еталонний запис (.ctr) для порівняння у звіті; null — не вибрано.</summary>
     public string? ReferenceFile { get; set; }
 

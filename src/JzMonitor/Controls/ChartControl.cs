@@ -33,9 +33,10 @@ public sealed class ChartControl : FrameworkElement
         nameof(Series), typeof(IReadOnlyList<ChartSeries>), typeof(ChartControl),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    // Курсор не перемальовує лінії — лише верхній шар (курсор і легенда), див. RenderOverlay
     public static readonly DependencyProperty CursorIndexProperty = DependencyProperty.Register(
         nameof(CursorIndex), typeof(int), typeof(ChartControl),
-        new FrameworkPropertyMetadata(-1, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(-1, (d, _) => ((ChartControl)d).RenderOverlay()));
 
     public static readonly DependencyProperty XLabelProperty = DependencyProperty.Register(
         nameof(XLabel), typeof(Func<int, string>), typeof(ChartControl),
@@ -142,6 +143,7 @@ public sealed class ChartControl : FrameworkElement
         FocusVisualStyle = null;
         Cursor = Cursors.Arrow;
         _alertTip.PlacementTarget = this;
+        AddVisualChild(_overlay);
     }
 
     /// <summary>
@@ -216,6 +218,70 @@ public sealed class ChartControl : FrameworkElement
 
     private int PointCount => Series?.Count > 0 ? Series.Max(s => s.Values.Length) : 0;
 
+    // ── Два шари: лінії (OnRender — лише коли змінились дані чи розмір) і верхній шар з курсором і легендою
+    // (RenderOverlay — на кожен крок курсора). Раніше кожен крок курсора заново будував усі лінії. ──
+    private readonly DrawingVisual _overlay = new();
+    protected override int VisualChildrenCount => 1;
+    protected override Visual GetVisualChild(int index) => _overlay;
+    /// <summary>Параметри останнього малювання ліній — для верхнього шару.</summary>
+    private double _legendH = -1, _plotBottom, _drawnW;
+    private int _drawnN;
+
+    private static readonly Dictionary<Color, Brush> BrushCache = new();
+    private static Brush BrushOf(Color c)
+    {
+        if (!BrushCache.TryGetValue(c, out var b)) BrushCache[c] = b = Frozen(new SolidColorBrush(c));
+        return b;
+    }
+
+    /// <summary>Легенда: підписи зі значеннями під курсором і їх розміщення (переноситься на кілька рядків).</summary>
+    private (List<(FormattedText text, Brush brush, bool dashed, Point pos)> items, double height) LegendLayout(double w)
+    {
+        var items = new List<(FormattedText, Brush, bool, Point)>();
+        if (!ShowLegend || Series is not { } series) return (items, 0);
+        double x = 0, y = 0;
+        int cursor = CursorIndex;
+        foreach (var s in series)
+        {
+            if (!s.Values.Any(v => v.HasValue)) continue;
+            var brush = BrushOf(s.Color);
+            string cur = cursor >= 0 && cursor < s.Values.Length && s.Values[cursor] is double cv
+                ? cv.ToString("0.#", CultureInfo.InvariantCulture) : "—";
+            var text = Text(s.Unit.Length > 0 ? $"{s.Name}  {cur} {s.Unit}" : $"{s.Name}  {cur}", brush, 11.5, Face);
+            double itemW = text.Width + 18 + 22;
+            if (x > 0 && x + itemW > w) { x = 0; y += 20; }
+            items.Add((text, brush, s.Dashed, new Point(x, y)));
+            x += itemW;
+        }
+        return (items, items.Count > 0 ? y + 20 + 6 : 0);
+    }
+
+    /// <summary>Верхній шар: легенда зі значеннями під курсором і лінія курсора.</summary>
+    private void RenderOverlay()
+    {
+        double w = ActualWidth;
+        var (items, legendH) = LegendLayout(w);
+        // Легенда переклалась на інше число рядків — змінилась висота області графіка: перемалювати все
+        if (Math.Abs(legendH - _legendH) > 0.1 || Math.Abs(w - _drawnW) > 0.1) { InvalidateVisual(); return; }
+        using var dc = _overlay.RenderOpen();
+        foreach (var (text, brush, dashed, p) in items)
+        {
+            if (dashed)
+            {
+                dc.DrawRoundedRectangle(brush, null, new Rect(p.X, p.Y + 6, 5, 4), 1, 1);
+                dc.DrawRoundedRectangle(brush, null, new Rect(p.X + 7, p.Y + 6, 5, 4), 1, 1);
+            }
+            else dc.DrawRoundedRectangle(brush, null, new Rect(p.X, p.Y + 6, 12, 4), 2, 2);
+            dc.DrawText(text, new Point(p.X + 18, p.Y));
+        }
+        int n = _drawnN;
+        if (n >= 2 && CursorIndex >= 0 && CursorIndex < n)
+        {
+            var x = Math.Round(CursorIndex * (w - 1) / (n - 1)) + 0.5;
+            dc.DrawLine(CursorPen, new Point(x, _legendH), new Point(x, _plotBottom));
+        }
+    }
+
     protected override void OnRender(DrawingContext dc)
     {
         var w = ActualWidth;
@@ -223,50 +289,21 @@ public sealed class ChartControl : FrameworkElement
         var series = Series;
         int n = PointCount;
 
-        // Легенда — окремою смугою над графіком (переноситься на кілька рядків), щоб не перекривати лінії
-        var legend = new List<(FormattedText text, Brush brush, bool dashed, double min, double max)>();
-        foreach (var s in series ?? [])
-        {
-            var vals = s.Values.Where(v => v.HasValue).Select(v => v!.Value).ToList();
-            if (vals.Count == 0) continue;
-            double min = s.Min ?? vals.Min(), max = s.Max ?? vals.Max();
-            var brush = new SolidColorBrush(s.Color);
-            brush.Freeze();
-            string cur = CursorIndex >= 0 && CursorIndex < s.Values.Length && s.Values[CursorIndex] is double cv
-                ? cv.ToString("0.#", CultureInfo.InvariantCulture) : "—";
-            string label = s.Unit.Length > 0 ? $"{s.Name}  {cur} {s.Unit}" : $"{s.Name}  {cur}";
-            legend.Add((Text(label, brush, 11.5, Face), brush, s.Dashed, min, max));
-        }
-        double legendH = 0;
-        var legendPos = new List<Point>();
-        if (ShowLegend)
-        {
-            double x = 0, y = 0;
-            foreach (var l in legend)
-            {
-                double itemW = l.text.Width + 18 + 22;
-                if (x > 0 && x + itemW > w) { x = 0; y += 20; }
-                legendPos.Add(new Point(x, y));
-                x += itemW;
-            }
-            if (legend.Count > 0) legendH = y + 20 + 6;
-        }
-        for (int i = 0; i < legendPos.Count; i++)
-        {
-            var p = legendPos[i];
-            if (legend[i].dashed)
-            {
-                dc.DrawRoundedRectangle(legend[i].brush, null, new Rect(p.X, p.Y + 6, 5, 4), 1, 1);
-                dc.DrawRoundedRectangle(legend[i].brush, null, new Rect(p.X + 7, p.Y + 6, 5, 4), 1, 1);
-            }
-            else dc.DrawRoundedRectangle(legend[i].brush, null, new Rect(p.X, p.Y + 6, 12, 4), 2, 2);
-            dc.DrawText(legend[i].text, new Point(p.X + 18, p.Y));
-        }
+        double legendH = LegendLayout(w).height;
+        _legendH = legendH;
+        _drawnW = w;
+        _drawnN = 0;
+        try { DrawPlot(dc, w, h, series, n, legendH); }
+        finally { RenderOverlay(); }
+    }
 
+    private void DrawPlot(DrawingContext dc, double w, double h, IReadOnlyList<ChartSeries>? series, int n, double legendH)
+    {
         var xLabel = XLabel;
         double axisH = xLabel != null && n >= 2 ? 18 : 0;
         double plotTop = legendH, plotBottom = h - axisH, plotH = plotBottom - plotTop;
         _plotTop = plotTop;
+        _plotBottom = plotBottom;
         dc.DrawRoundedRectangle(Back, null, new Rect(0, plotTop, w, Math.Max(0, plotH)), 6, 6);
         for (int i = 1; i < 4; i++)
         {
@@ -281,6 +318,7 @@ public sealed class ChartControl : FrameworkElement
             return;
         }
         if (n < 2) return;
+        _drawnN = n;
 
         double X(int i) => i * (w - 1) / (n - 1);
 
@@ -318,11 +356,15 @@ public sealed class ChartControl : FrameworkElement
         }
 
         double top = plotTop + 10, bottom = plotBottom - 10;
-        int li = 0;
         foreach (var s in series)
         {
-            if (!s.Values.Any(v => v.HasValue)) continue;
-            var (_, brush, _, min, max) = legend[li++];
+            // Шкала серії: задана (MIN/MAX діапазону) або за її точками
+            double min = double.MaxValue, max = double.MinValue;
+            foreach (var v in s.Values) if (v is double d) { if (d < min) min = d; if (d > max) max = d; }
+            if (min > max) continue;
+            if (s.Min is double smin) min = smin;
+            if (s.Max is double smax) max = smax;
+            var brush = BrushOf(s.Color);
             if (max - min < 1e-9) { min -= 1; max += 1; }
             double Y(double v) => bottom - (Math.Clamp(v, min, max) - min) / (max - min) * (bottom - top);
 
@@ -392,12 +434,6 @@ public sealed class ChartControl : FrameworkElement
                 var mark = Text("!", Brushes.White, 10, AlertFace);
                 dc.DrawText(mark, new Point(center.X - mark.Width / 2, center.Y - mark.Height / 2));
             }
-        }
-
-        if (CursorIndex >= 0 && CursorIndex < n)
-        {
-            var x = Math.Round(X(CursorIndex)) + 0.5;
-            dc.DrawLine(CursorPen, new Point(x, plotTop), new Point(x, plotBottom));
         }
     }
 

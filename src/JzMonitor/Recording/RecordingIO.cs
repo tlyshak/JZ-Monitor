@@ -9,8 +9,30 @@ namespace JzMonitor.Recording;
 public sealed class VehicleInfo
 {
     public static readonly string[] Keys = ["Make", "Engine", "Transmission", "Year", "Mileage", "EngineType", "Cylinders", "GearboxType", "Drive"];
-    public static readonly string[] Labels = ["Make / model", "Engine", "Transmission", "Year", "Mileage", "Engine type", "Cylinders", "Gearbox type", "Drive"];
+    public static readonly string[] Labels = ["Make / model", "Engine", "Transmission", "Year", "Mileage", "", "Cylinders", "", "Drive"];
+
+    /// <summary>
+    /// Поля «тип двигуна» (TypeD) і «тип КПП» (TypeT) — лише місця у форматі .ctr: програма їх не показує й не
+    /// заповнює (рішення власника). Значення зі старого файлу зберігаються як є, щоб .ctr лишався побайтово таким самим.
+    /// </summary>
+    public static readonly HashSet<int> UnusedSlots = [5, 7];
     public string[] Values { get; } = Enumerable.Repeat("", 9).ToArray();
+
+    /// <summary>
+    /// Опис еталонного авто — як у підвалі записів 08–10.11, без типу двигуна і типу КПП.
+    /// Підставляється в новий запис, поки в налаштуваннях немає власного.
+    /// </summary>
+    public static readonly string[] ReferenceCar = ["Chaser", "2JZ-GTE", "A340H", "1997", "418000", "", "6", "", "4WD"];
+
+    public bool IsEmpty => Values.All(string.IsNullOrWhiteSpace);
+
+    /// <summary>Опис для нового запису з готових значень — без полів, яких немає в програмі.</summary>
+    public static VehicleInfo From(string[] values)
+    {
+        var v = new VehicleInfo();
+        for (int i = 0; i < Math.Min(9, values.Length); i++) v.Values[i] = UnusedSlots.Contains(i) ? "" : values[i] ?? "";
+        return v;
+    }
 
     /// <summary>Значення за замовчуванням із секції [Koment] CarTester.ini.</summary>
     public static VehicleInfo FromIni(string path)

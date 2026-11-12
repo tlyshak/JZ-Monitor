@@ -25,7 +25,7 @@
                         </Border>
                         <Button DockPanel.Dock="Right" Command="{Binding OpenCommand}" Margin="0" AutomationProperties.Name="{Binding Label, StringFormat=Open {0}}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8E5;" Style="{StaticResource Icon}"/>
+                                <c:VectorIcon Kind="Open"/>
                                 <TextBlock Text="Open…" Margin="8,0,0,0"/>
                             </StackPanel>
                         </Button>

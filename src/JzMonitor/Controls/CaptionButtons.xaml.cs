@@ -30,7 +30,7 @@ public partial class CaptionButtons : UserControl
         bool max = _window.WindowState == WindowState.Maximized;
         double f = SystemParameters.WindowNonClientFrameThickness.Left;
         if (_window.Content is FrameworkElement root) root.Margin = max ? new Thickness(f) : new Thickness(0);
-        MaxGlyph.Text = max ? "" : "";
+        MaxGlyph.Kind = max ? IconKind.Restore : IconKind.Maximize;
     }
 
     private void OnMinimize(object sender, RoutedEventArgs e)

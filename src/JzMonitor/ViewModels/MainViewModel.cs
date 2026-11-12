@@ -97,6 +97,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private IEdgeSource? _source;
     private EdgeLogger? _edgeLog;
     private LogRecording _rec = new();
+
+    /// <summary>
+    /// Розібрані кадри (індекс = індекс кадру): кожен кадр розбирається один раз, а не окремо для статистики,
+    /// графіка, огляду й плиток. Скидається, коли змінюються запис або налаштування; у живому записі росте.
+    /// </summary>
+    private readonly List<Dictionary<string, ParamValue>> _decoded = new();
+
+    private Dictionary<string, ParamValue> Decoded(int index)
+    {
+        while (_decoded.Count <= index)
+            _decoded.Add(ParameterDecoder.Decode(_rec.Frames[_decoded.Count], Settings).ToDictionary(p => p.Key));
+        return _decoded[index];
+    }
     private bool _dirty;
     private DateTime _lastValidFrame;
     private int _okFrames, _badFrames;
@@ -118,6 +131,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public MainViewModel()
     {
         Settings = DecoderSettings.Load();
+        _rec = new LogRecording { Vehicle = DefaultVehicle() };
         ApplyAssemblerSettings();
         _assembler.FrameCompleted += OnFrame;
         RefreshPorts();
@@ -192,7 +206,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
     public string StartText => IsRunning ? "Stop" : "Connect";
-    public string StartIcon => IsRunning ? "" : "";
+    public IconKind StartIcon => IsRunning ? IconKind.Stop : IconKind.Play;
 
     private LinkState _link = LinkState.Offline;
     public LinkState Link { get => _link; private set { if (Set(ref _link, value)) OnPropertyChanged(nameof(LinkText)); } }
@@ -465,6 +479,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void SettingsChanged()
     {
         _settingsVersion++;
+        _decoded.Clear();
         Settings.Save();
         ApplyAssemblerSettings();
         RebuildParameters();
@@ -574,7 +589,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Counters = $"{_okFrames} ok  ·  {_badFrames} rejected";
             if (!f.Valid) return;
             _rec.Frames.Add(f);
-            if (_rangeEnd == null && _rec.Frames.Count - 1 >= _rangeStart) AccumulateStats(f);
+            if (_rangeEnd == null && _rec.Frames.Count - 1 >= _rangeStart) AccumulateStats(_rec.Frames.Count - 1);
             MarkDirty();
             RaiseRange();
             if (Follow) { _currentIndex = _rec.Frames.Count - 1; OnPropertyChanged(nameof(CurrentIndex)); ShowFrame(); }
@@ -638,8 +653,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Опис авто для нового запису: останній відомий, інакше — еталонне авто.</summary>
+    private VehicleInfo DefaultVehicle() =>
+        VehicleInfo.From(Settings.Vehicle is { Length: > 0 } v && v.Any(x => !string.IsNullOrWhiteSpace(x)) ? v : VehicleInfo.ReferenceCar);
+
+    /// <summary>Запам'ятати опис авто (з відкритого файлу чи вікна Vehicle) для наступних нових записів.</summary>
+    private void RememberVehicle()
+    {
+        if (_rec.Vehicle.IsEmpty) return;
+        Settings.Vehicle = VehicleInfo.From(_rec.Vehicle.Values).Values; // без полів, яких немає в програмі
+        Settings.Save();
+    }
+
     private void AfterLoad()
     {
+        RememberVehicle();
+        _decoded.Clear();
         _marksVersion++;
         _rangeStart = 0;
         _rangeEnd = null;
@@ -707,8 +736,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void ResetRecording()
     {
-        var vehicle = _rec.Vehicle;
+        // Новий запис — з тим самим описом авто (копія), а якщо він порожній — зі збереженим за замовчуванням
+        var vehicle = _rec.Vehicle.IsEmpty ? DefaultVehicle() : VehicleInfo.From(_rec.Vehicle.Values);
         _rec = new LogRecording { Vehicle = vehicle };
+        _decoded.Clear();
         _rangeStart = 0;
         _rangeEnd = null;
         _chartSig = null;
@@ -743,6 +774,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         var w = new VehicleWindow(_rec) { Owner = Application.Current.MainWindow };
         if (w.ShowDialog() != true) return;
+        RememberVehicle();
         MarkDirty();
         OnPropertyChanged(nameof(VehicleSummary));
     }
@@ -781,6 +813,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (CurrentFrame is not { } f) return;
         int removed = _currentIndex;
         _rec.Frames.Remove(f);
+        if (removed < _decoded.Count) _decoded.RemoveRange(removed, _decoded.Count - removed);
         _marksVersion++;
         if (removed < _rangeStart) _rangeStart--;
         if (_rangeEnd is int e && removed <= e) _rangeEnd = e - 1 < _rangeStart ? null : e - 1;
@@ -805,11 +838,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private static bool IsEngineOff(ObdFrame f) => f.B(4) is not > 0;
 
-    private void AccumulateStats(ObdFrame f)
+    private void AccumulateStats(int index)
     {
+        var f = _rec.Frames[index];
         _trip.Add(f, Settings);
         bool off = IsEngineOff(f);
-        foreach (var p in ParameterDecoder.Decode(f, Settings))
+        foreach (var p in Decoded(index).Values)
         {
             if (p.Key.StartsWith('f') || p.Value is not double v) continue;
             if (off && RunningOnlyKeys.Contains(p.Key)) continue;
@@ -825,7 +859,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _trip.Reset();
         if (_rec.Frames.Count == 0) return;
         var range = Range;
-        for (int i = range.Start; i <= range.End; i++) AccumulateStats(_rec.Frames[i]);
+        for (int i = range.Start; i <= range.End; i++) AccumulateStats(i);
     }
 
     private void UpdateStatTexts()
@@ -840,17 +874,28 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private void RebuildParameters()
     {
         RecomputeStats(); // одиниці/формули могли змінитися разом з налаштуваннями
+        var sampleFrame = CurrentFrame ?? _rec.Frames.LastOrDefault() ?? new ObdFrame { Bytes = new byte[12] };
+        var shown = ParameterDecoder.Decode(sampleFrame, Settings).Where(p => !p.HiddenInOriginal || ShowHidden).ToList();
+        // Набір параметрів той самий (звичайно — при відкритті іншого файлу чи зміні порогів) — рядки, плитки й
+        // індикатори не перестворюються: це найдовша частина (WPF заново будує десятки елементів), а змінитись
+        // могли хіба одиниці
+        var current = Parameters.Where(r => !r.IsTrip).ToList();
+        if (current.Count > 0 && current.Count == shown.Count
+            && current.Zip(shown).All(x => x.First.Key == x.Second.Key && x.First.Name == x.Second.Name))
+        {
+            foreach (var (row, p) in current.Zip(shown)) row.Unit = p.Unit;
+            ShowFrame();
+            return;
+        }
         var charted = Parameters.Where(p => p.Charted).Select(p => p.Key).ToHashSet();
         if (Parameters.Count == 0) charted = ["rpm", "iac", "ect"];
         Parameters.Clear();
         Tiles.Clear();
         Flags.Clear();
         Analog.Clear();
-        var sample = CurrentFrame ?? _rec.Frames.LastOrDefault() ?? new ObdFrame { Bytes = new byte[12] };
         int c = 0;
-        foreach (var p in ParameterDecoder.Decode(sample, Settings))
+        foreach (var p in shown)
         {
-            if (p.HiddenInOriginal && !ShowHidden) continue;
             var row = new ParamRow
             {
                 Key = p.Key, Name = p.Name, Unit = p.Unit, HiddenInOriginal = p.HiddenInOriginal,
@@ -954,7 +999,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             UpdateChart();
             return;
         }
-        var values = ParameterDecoder.Decode(f, Settings).ToDictionary(p => p.Key);
+        var values = Decoded(_currentIndex);
         int extraShown = Parameters.Count(p => p.Key.StartsWith('b'));
         int extraNow = values.Keys.Count(k => k.StartsWith('b'));
         if (ShowHidden && extraShown != extraNow) { RebuildParameters(); return; }
@@ -1162,7 +1207,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _chartSig = sig;
 
         var frames = Enumerable.Range(0, (last - start) / step + 1)
-            .Select(i => ParameterDecoder.Decode(_rec.Frames[start + i * step], Settings).ToDictionary(p => p.Key)).ToList();
+            .Select(i => Decoded(start + i * step)).ToList();
         ChartStart = start;
         ChartStep = step;
         OnPropertyChanged(nameof(ChartXLabel));
@@ -1202,7 +1247,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _overviewStep = step;
 
         var frames = Enumerable.Range(0, (n - 1) / step + 1)
-            .Select(i => ParameterDecoder.Decode(_rec.Frames[i * step], Settings).ToDictionary(p => p.Key)).ToList();
+            .Select(i => Decoded(i * step)).ToList();
         // Середня витрата на огляді — за весь запис від його початку (діапазон тут ще не вибрано)
         TripMeter? wholeTrip = null;
         if (keys.Any(k => k.Key == "trip_avg"))

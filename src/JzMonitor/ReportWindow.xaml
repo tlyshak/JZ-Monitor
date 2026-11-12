@@ -111,7 +111,7 @@
                         <Button DockPanel.Dock="Right" Command="{Binding CopyCommand}" Style="{StaticResource GhostButton}" ToolTip="Copy the report as text"
                                 AutomationProperties.Name="Copy report">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8C8;" Style="{StaticResource Icon}"/>
+                                <c:VectorIcon Kind="Copy"/>
                                 <TextBlock Text="Copy" Margin="6,0,0,0"/>
                             </StackPanel>
                         </Button>

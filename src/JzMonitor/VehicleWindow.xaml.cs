@@ -8,11 +8,6 @@ public partial class VehicleWindow : Window
 {
     private readonly LogRecording _rec;
     private readonly TextBox?[] _boxes = new TextBox?[9];
-    /// <summary>
-    /// Поля, яких немає у вікні: «Engine type» для цього авто зайвий. Значення в записі не змінюється —
-    /// .ctr лишається побайтово таким, як був.
-    /// </summary>
-    private static readonly HashSet<int> HiddenFields = [5];
 
     public VehicleWindow(LogRecording rec)
     {
@@ -21,7 +16,7 @@ public partial class VehicleWindow : Window
         int row = 0;
         for (int i = 0; i < 9; i++)
         {
-            if (HiddenFields.Contains(i)) continue;
+            if (VehicleInfo.UnusedSlots.Contains(i)) continue; // поля немає в програмі (див. VehicleInfo)
             Fields.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
             var label = new TextBlock { Text = VehicleInfo.Labels[i], Style = (Style)FindResource("FieldLabel") };
             Grid.SetRow(label, row);

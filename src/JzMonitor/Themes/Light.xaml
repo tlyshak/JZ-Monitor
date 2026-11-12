@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:c="clr-namespace:JzMonitor.Controls">
 
     <!-- Палітра -->
     <Color x:Key="BgColor">#F3F5F8</Color>
@@ -32,7 +33,6 @@
     <!-- Кнопка «закрити» власного заголовка вікна — як у Windows -->
     <SolidColorBrush x:Key="CloseHover" Color="#E81123"/>
 
-    <FontFamily x:Key="IconFont">Segoe MDL2 Assets</FontFamily>
     <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
 
     <!-- Тексти -->
@@ -61,11 +61,8 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="Padding" Value="14"/>
-        <Setter Property="Effect">
-            <Setter.Value>
-                <DropShadowEffect BlurRadius="14" ShadowDepth="1" Direction="270" Opacity="0.06" Color="#1D2430"/>
-            </Setter.Value>
-        </Setter>
+        <!-- Без DropShadowEffect: ефект на картці перераховується при кожній зміні її вмісту (курсор графіка,
+             числа на плитках) — на старих ПК / Windows 7 малювання стає помітно повільним. Межу дає рамка. -->
     </Style>
 
     <!-- Кнопки -->
@@ -135,12 +132,6 @@
         <Setter Property="Margin" Value="0"/>
     </Style>
 
-    <!-- Іконка + текст усередині кнопки -->
-    <Style x:Key="Icon" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
 
     <!-- TextBox -->
     <Style TargetType="TextBox">
@@ -216,8 +207,7 @@
                 <ControlTemplate TargetType="CheckBox">
                     <Border x:Name="Box" Width="16" Height="16" CornerRadius="4" Background="{StaticResource Panel2}"
                             BorderBrush="{StaticResource Border}" BorderThickness="1">
-                        <TextBlock x:Name="Mark" Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="10"
-                                   Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+                        <c:VectorIcon Kind="Check" x:Name="Mark" Size="10" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
@@ -234,8 +224,7 @@
     <!-- ComboBox -->
     <ControlTemplate x:Key="ComboToggle" TargetType="ToggleButton">
         <Border x:Name="Bd" Background="{StaticResource Panel2}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="6">
-            <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="{StaticResource TextDim}"
-                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <c:VectorIcon Kind="ChevronDown" Size="10" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"/>
         </Border>
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">

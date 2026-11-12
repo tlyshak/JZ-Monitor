@@ -4,7 +4,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:JzMonitor.Controls"
         Title="{Binding Title}" Height="920" Width="1440" MinWidth="1100" MinHeight="760"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized"
         Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
@@ -178,37 +178,37 @@
                     <StackPanel Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
 
                     <Button AutomationProperties.Name="New recording" Style="{StaticResource GhostButton}" Command="{Binding NewCommand}" ToolTip="New recording">
-                        <TextBlock Text="&#xE710;" Style="{StaticResource Icon}"/>
+                        <c:VectorIcon Kind="Add"/>
                     </Button>
                     <Button AutomationProperties.Name="Open recording (.ctr)" Style="{StaticResource GhostButton}" Command="{Binding OpenCommand}" ToolTip="Open recording (.ctr)">
-                        <TextBlock Text="&#xE8E5;" Style="{StaticResource Icon}"/>
+                        <c:VectorIcon Kind="Open"/>
                     </Button>
                     <Button AutomationProperties.Name="Save recording (.ctr)" Style="{StaticResource GhostButton}" Command="{Binding SaveCommand}" ToolTip="Save recording (.ctr)">
-                        <TextBlock Text="&#xE74E;" Style="{StaticResource Icon}"/>
+                        <c:VectorIcon Kind="Save"/>
                     </Button>
                     <Rectangle Width="1" Fill="{StaticResource Border}" Margin="8,6"/>
                     <Button AutomationProperties.Name="Export to CSV (Excel)" Style="{StaticResource GhostButton}" Command="{Binding ExportCsvCommand}" ToolTip="Export to CSV (Excel)">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE9F9;" Style="{StaticResource Icon}"/>
+                            <c:VectorIcon Kind="Table"/>
                             <TextBlock Text="CSV" Margin="6,0,0,0"/>
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.Name="Recording report" Style="{StaticResource GhostButton}" Command="{Binding ReportCommand}"
                             ToolTip="Report: warm idle, warm-up, checks, trip — compared with the reference recording">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE9F9;" Style="{StaticResource Icon}"/>
+                            <c:VectorIcon Kind="Report"/>
                             <TextBlock Text="Report" Margin="6,0,0,0"/>
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.Name="Compare two recordings" Style="{StaticResource GhostButton}" Command="{Binding CompareCommand}" ToolTip="Compare two recordings">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE8AB;" Style="{StaticResource Icon}"/>
+                            <c:VectorIcon Kind="Compare"/>
                             <TextBlock Text="Compare" Margin="6,0,0,0"/>
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.Name="Vehicle info and notes" Style="{StaticResource GhostButton}" Command="{Binding VehicleCommand}" ToolTip="Vehicle info and notes">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE804;" Style="{StaticResource Icon}"/>
+                            <c:VectorIcon Kind="Car"/>
                             <TextBlock Text="Vehicle" Margin="6,0,0,0"/>
                         </StackPanel>
                     </Button>
@@ -220,11 +220,11 @@
                     <ComboBox Width="96" ItemsSource="{Binding Ports}" SelectedItem="{Binding SelectedPort}"
                               IsEnabled="{Binding IsRunning, Converter={x:Static c:Inverse.Bool}}"/>
                     <Button AutomationProperties.Name="Refresh port list" Style="{StaticResource GhostButton}" Command="{Binding RefreshPortsCommand}" ToolTip="Refresh port list" Margin="4,0,8,0">
-                        <TextBlock Text="&#xE72C;" Style="{StaticResource Icon}"/>
+                        <c:VectorIcon Kind="Refresh"/>
                     </Button>
                     <Button AutomationProperties.Name="Connect" Style="{StaticResource AccentButton}" Command="{Binding StartCommand}" MinWidth="110" Margin="0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding StartIcon}" Style="{StaticResource Icon}" FontSize="12"/>
+                            <c:VectorIcon Kind="{Binding StartIcon}" Size="12"/>
                             <TextBlock Text="{Binding StartText}" Margin="8,0,0,0"/>
                         </StackPanel>
                     </Button>
@@ -297,11 +297,11 @@
                                 </Button.Style>
                                 <Grid>
                                     <StackPanel Orientation="Horizontal" Visibility="{Binding TrendVisible, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="&#xE71C;" Style="{StaticResource Icon}" FontSize="12"/>
+                                        <c:VectorIcon Kind="Filter" Size="12"/>
                                         <TextBlock Text="Range" Margin="6,0,0,0"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Visibility="{Binding RangePanelOpen, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="&#xE73E;" Style="{StaticResource Icon}" FontSize="12"/>
+                                        <c:VectorIcon Kind="Check" Size="12"/>
                                         <TextBlock Text="Done" Margin="6,0,0,0"/>
                                     </StackPanel>
                                 </Grid>
@@ -313,49 +313,49 @@
                                     <TextBlock Text="{Binding RangeInfo}" Style="{StaticResource Caption}" FontWeight="Normal" VerticalAlignment="Center"/>
                                     <Button AutomationProperties.Name="Show the whole recording" Style="{StaticResource GhostButton}" Command="{Binding FullRangeCommand}"
                                             ToolTip="Show the whole recording" Padding="4,0" Margin="4,0,0,0">
-                                        <TextBlock Text="&#xE711;" Style="{StaticResource Icon}" FontSize="10"/>
+                                        <c:VectorIcon Kind="Cancel" Size="10"/>
                                     </Button>
                                 </StackPanel>
                             </Border>
                             <StackPanel Orientation="Horizontal" Visibility="{Binding HasMarks, Converter={StaticResource BoolToVis}}">
                                 <Button AutomationProperties.Name="Previous marked frame" Style="{StaticResource GhostButton}" Command="{Binding PrevMarkCommand}"
                                         ToolTip="Previous marked frame" Padding="4,6">
-                                    <TextBlock Text="&#xE76B;" Style="{StaticResource Icon}" FontSize="10" Foreground="{StaticResource Warn}"/>
+                                    <c:VectorIcon Kind="ChevronLeft" Size="10" Foreground="{StaticResource Warn}"/>
                                 </Button>
                                 <TextBlock Text="{Binding MarkCount}" Foreground="{StaticResource Warn}" FontWeight="SemiBold" VerticalAlignment="Center"
                                            ToolTip="Marked frames in the recording"/>
                                 <Button AutomationProperties.Name="Next marked frame" Style="{StaticResource GhostButton}" Command="{Binding NextMarkCommand}"
                                         ToolTip="Next marked frame" Padding="4,6">
-                                    <TextBlock Text="&#xE76C;" Style="{StaticResource Icon}" FontSize="10" Foreground="{StaticResource Warn}"/>
+                                    <c:VectorIcon Kind="ChevronRight" Size="10" Foreground="{StaticResource Warn}"/>
                                 </Button>
                             </StackPanel>
                             <Button AutomationProperties.Name="Mark / unmark this frame" Style="{StaticResource GhostButton}" Command="{Binding ToggleMarkCommand}" ToolTip="Mark / unmark this frame">
-                                <TextBlock>
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Icon}">
-                                            <Setter Property="Text" Value="&#xE734;"/>
+                                <c:VectorIcon>
+                                    <c:VectorIcon.Style>
+                                        <Style TargetType="c:VectorIcon">
+                                            <Setter Property="Kind" Value="Star"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding FrameMarked}" Value="True">
-                                                    <Setter Property="Text" Value="&#xE735;"/>
+                                                    <Setter Property="Kind" Value="StarFilled"/>
                                                     <Setter Property="Foreground" Value="{StaticResource Warn}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                    </c:VectorIcon.Style>
+                                </c:VectorIcon>
                             </Button>
                             <Button AutomationProperties.Name="Delete this frame" Style="{StaticResource GhostButton}" Command="{Binding DeleteFrameCommand}" ToolTip="Delete this frame">
-                                <TextBlock Text="&#xE74D;" Style="{StaticResource Icon}"/>
+                                <c:VectorIcon Kind="Delete"/>
                             </Button>
                         </StackPanel>
                         <Button DockPanel.Dock="Left" AutomationProperties.Name="Previous frame" Style="{StaticResource GhostButton}" Command="{Binding PrevCommand}" ToolTip="Previous frame">
-                            <TextBlock Text="&#xE76B;" Style="{StaticResource Icon}" FontSize="12"/>
+                            <c:VectorIcon Kind="ChevronLeft" Size="12"/>
                         </Button>
                         <Button DockPanel.Dock="Left" AutomationProperties.Name="Next frame" Style="{StaticResource GhostButton}" Command="{Binding NextCommand}" ToolTip="Next frame">
-                            <TextBlock Text="&#xE76C;" Style="{StaticResource Icon}" FontSize="12"/>
+                            <c:VectorIcon Kind="ChevronRight" Size="12"/>
                         </Button>
                         <Button DockPanel.Dock="Left" AutomationProperties.Name="Jump to latest frame and follow" Style="{StaticResource GhostButton}" Command="{Binding LatestCommand}" ToolTip="Jump to latest frame and follow">
-                            <TextBlock Text="&#xE893;" Style="{StaticResource Icon}" FontSize="12"/>
+                            <c:VectorIcon Kind="Latest" Size="12"/>
                         </Button>
                         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Margin="12,0,16,0" VerticalAlignment="Center">
                             <TextBlock Text="{Binding FrameNumber, StringFormat='Frame {0}'}" FontWeight="SemiBold"/>
@@ -573,13 +573,13 @@
                                         <WrapPanel>
                                             <Button AutomationProperties.Name="Import CarTester.ini" Command="{Binding ImportIniCommand}" Margin="0,0,8,8">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="&#xE8B5;" Style="{StaticResource Icon}"/>
+                                                    <c:VectorIcon Kind="Import"/>
                                                     <TextBlock Text="Import CarTester.ini" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button AutomationProperties.Name="Replay edge log" Command="{Binding ReplayEdgesCommand}" Margin="0,0,8,8">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="&#xE768;" Style="{StaticResource Icon}"/>
+                                                    <c:VectorIcon Kind="Play"/>
                                                     <TextBlock Text="Replay edge log" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
