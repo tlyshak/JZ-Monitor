@@ -87,6 +87,17 @@
                     <Setter TargetName="Name" Property="Foreground" Value="{StaticResource TextDim}"/>
                     <Setter TargetName="Row" Property="ToolTip" Value="Not shown by CarTester; never set on the reference 2JZ-GTE"/>
                 </DataTrigger>
+                <!-- Попередження: застрягла лямбда, концевик ХХ при закритій заслінці -->
+                <DataTrigger Binding="{Binding Warning}" Value="Warn">
+                    <Setter TargetName="Led" Property="Fill" Value="{StaticResource Caution}"/>
+                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Caution}"/>
+                    <Setter TargetName="Row" Property="ToolTip" Value="{Binding WarningText}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Warning}" Value="Alarm">
+                    <Setter TargetName="Led" Property="Fill" Value="{StaticResource Danger}"/>
+                    <Setter TargetName="State" Property="Foreground" Value="{StaticResource Danger}"/>
+                    <Setter TargetName="Row" Property="ToolTip" Value="{Binding WarningText}"/>
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
@@ -163,6 +174,13 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE9F9;" Style="{StaticResource Icon}"/>
                             <TextBlock Text="CSV" Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button AutomationProperties.Name="Recording report" Style="{StaticResource GhostButton}" Command="{Binding ReportCommand}"
+                            ToolTip="Report: warm idle, warm-up, checks, trip — compared with the reference recording">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE9F9;" Style="{StaticResource Icon}"/>
+                            <TextBlock Text="Report" Margin="6,0,0,0"/>
                         </StackPanel>
                     </Button>
                     <Button AutomationProperties.Name="Compare two recordings" Style="{StaticResource GhostButton}" Command="{Binding CompareCommand}" ToolTip="Compare two recordings">
@@ -334,11 +352,11 @@
                                 TickFrequency="1" SmallChange="1" LargeChange="10" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     </DockPanel>
                     <Grid>
-                        <c:ChartControl x:Name="Chart" Series="{Binding Chart}" CursorIndex="{Binding ChartCursor, Mode=OneWay}" XLabel="{Binding ChartXLabel}" Marks="{Binding ChartMarks}"
+                        <c:ChartControl x:Name="Chart" Series="{Binding Chart}" CursorIndex="{Binding ChartCursor, Mode=OneWay}" XLabel="{Binding ChartXLabel}" Marks="{Binding ChartMarks}" Alerts="{Binding ChartAlerts}"
                                         Visibility="{Binding TrendVisible, Converter={StaticResource BoolToVis}}"/>
                         <c:ChartControl x:Name="Overview" DragSelects="True" Series="{Binding Overview}" CursorIndex="{Binding OverviewCursor, Mode=OneWay}"
                                         SelectionStart="{Binding OverviewSelStart, Mode=OneWay}" SelectionEnd="{Binding OverviewSelEnd, Mode=OneWay}"
-                                        XLabel="{Binding OverviewXLabel}" Marks="{Binding OverviewMarks}" AutomationProperties.Name="Whole recording overview"
+                                        XLabel="{Binding OverviewXLabel}" Marks="{Binding OverviewMarks}" Alerts="{Binding OverviewAlerts}" AutomationProperties.Name="Whole recording overview"
                                         Visibility="{Binding RangePanelOpen, Converter={StaticResource BoolToVis}}"/>
                     </Grid>
                 </DockPanel>
@@ -522,6 +540,12 @@
                                                 <TextBox Text="{Binding MinDataBytes}"/>
                                             </StackPanel>
                                         </UniformGrid>
+
+                                        <TextBlock Text="CHECKS" Style="{StaticResource SectionTitle}"/>
+                                        <CheckBox Content="O2 stuck: warn from 10 s (default 20 s)" IsChecked="{Binding ShowShortO2Stuck}" Margin="0,0,0,4"
+                                                  ToolTip="Short O2 stalls (10–20 s) happen on a healthy engine during transients; off = only 20 s and longer"/>
+                                        <CheckBox Content="Idle switch open at 0 % throttle: warn from 2 s (default 5 s)" IsChecked="{Binding ShowShortIdlMismatch}" Margin="0,0,0,14"
+                                                  ToolTip="Off = only mismatches longer than 5 s"/>
 
                                         <TextBlock Text="TOOLS" Style="{StaticResource SectionTitle}"/>
                                         <CheckBox Content="Show data hidden by CarTester" IsChecked="{Binding ShowHidden}" Margin="0,0,0,4"/>

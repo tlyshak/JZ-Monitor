@@ -13,6 +13,8 @@ namespace JzMonitor.ViewModels;
 
 public enum LinkState { Offline, Waiting, Live, Errors }
 
+public enum FlagWarning { None, Warn, Alarm }
+
 /// <summary>Один параметр: рядок таблиці, плитка на панелі приладів або індикатор біта.</summary>
 public sealed class ParamRow : ObservableObject
 {
@@ -38,6 +40,11 @@ public sealed class ParamRow : ObservableObject
     public string Text { get => _text; set => Set(ref _text, value); }
     public string Raw { get => _raw; set => Set(ref _raw, value); }
     public bool IsOn { get => _isOn; set => Set(ref _isOn, value); }
+    private FlagWarning _warning;
+    private string? _warningText;
+    /// <summary>Попередження для індикатора біта (застрягла лямбда, концевик ХХ при закритій заслінці).</summary>
+    public FlagWarning Warning { get => _warning; set => Set(ref _warning, value); }
+    public string? WarningText { get => _warningText; set => Set(ref _warningText, value); }
     /// <summary>0..1 — заповнення шкали на плитці (за сирим байтом).</summary>
     public double Fraction { get => _fraction; set => Set(ref _fraction, value); }
     /// <summary>Максимум за сесію (поточний запис).</summary>
@@ -139,6 +146,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }, () => _rec.Frames.Count > 0);
         FullRangeCommand = new RelayCommand(() => SetRange(FrameRange.All(_rec.Frames.Count)), () => _rec.Frames.Count > 0 && !IsRangeFull);
         CompareCommand = new RelayCommand(OpenCompare);
+        ReportCommand = new RelayCommand(OpenReport, () => _rec.Frames.Count > 0);
         ToggleRangePanelCommand = new RelayCommand(() => RangePanelOpen = !RangePanelOpen);
 
         _linkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -166,6 +174,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand LatestCommand { get; }
     public RelayCommand FullRangeCommand { get; }
     public RelayCommand CompareCommand { get; }
+    public RelayCommand ReportCommand { get; }
     public RelayCommand ToggleRangePanelCommand { get; }
 
     #region Властивості для прив'язки
@@ -205,6 +214,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public int InjectorCount { get => Settings.InjectorCount; set { Settings.InjectorCount = value; SettingsChanged(); } }
     public int InjectionRate { get => Settings.InjectionRate; set { Settings.InjectionRate = value; SettingsChanged(); } }
     public double SpeedDivisor { get => Settings.SpeedDivisor; set { if (value > 0) { Settings.SpeedDivisor = value; SettingsChanged(); } } }
+    public bool ShowShortO2Stuck { get => Settings.ShowShortO2Stuck; set { Settings.ShowShortO2Stuck = value; SettingsChanged(); } }
+    public bool ShowShortIdlMismatch { get => Settings.ShowShortIdlMismatch; set { Settings.ShowShortIdlMismatch = value; SettingsChanged(); } }
     public double MapKpaPerCount { get => Settings.MapKpaPerCount; set { if (value > 0) { Settings.MapKpaPerCount = value; SettingsChanged(); } } }
 
     public double BitTimeMs { get => Settings.BitTimeMs; set { Settings.BitTimeMs = value; SettingsChanged(); } }
@@ -327,7 +338,36 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         int hi = RangeHi;
         ChartMarks = marked.Where(i => i >= ChartStart && i <= hi).Select(i => (i - ChartStart) / Math.Max(1, ChartStep)).ToList();
         OverviewMarks = marked.Select(i => i / _overviewStep).ToList();
+
+        // Знаки «!» — спрацювання перевірок (перераховуються лише коли змінилися кадри)
+        string alertSig = $"{_marksVersion}:{n}:{Settings.ShowShortO2Stuck}:{Settings.ShowShortIdlMismatch}";
+        if (alertSig != _alertsSig)
+        {
+            _alertsSig = alertSig;
+            _alerts = Diagnostics.Alerts(_rec.Frames, Settings);
+        }
+        int step = Math.Max(1, ChartStep);
+        ChartAlerts = _alerts.Where(a => a.Span.End >= ChartStart && a.Span.Start <= hi)
+            .Select(a => new ChartAlert((Math.Max(a.Span.Start, ChartStart) - ChartStart) / step, (Math.Min(a.Span.End, hi) - ChartStart) / step,
+                a.Level == AlertLevel.Alarm, AlertTip(a))).ToList();
+        OverviewAlerts = _alerts.Select(a => new ChartAlert(a.Span.Start / _overviewStep, a.Span.End / _overviewStep,
+            a.Level == AlertLevel.Alarm, AlertTip(a))).ToList();
     }
+
+    /// <summary>Текст підказки над знаком «!»: що спрацювало, кадри й час.</summary>
+    private string AlertTip(Alert a)
+    {
+        var f = _rec.Frames;
+        string frames = a.Span.Start == a.Span.End ? $"frame {a.Span.Start + 1}" : $"frames {a.Span.Start + 1}–{a.Span.End + 1}";
+        return $"{a.Text}\n{frames}  ·  {f[a.Span.Start].Time:HH:mm:ss}–{f[a.Span.End].Time:HH:mm:ss}";
+    }
+
+    private List<Alert> _alerts = [];
+    private string? _alertsSig;
+    private IReadOnlyList<ChartAlert>? _chartAlerts, _overviewAlerts;
+    /// <summary>Знаки «!» на графіку тренду й огляді: де спрацювали перевірки (лямбда, концевик ХХ, детонація).</summary>
+    public IReadOnlyList<ChartAlert>? ChartAlerts { get => _chartAlerts; private set => Set(ref _chartAlerts, value); }
+    public IReadOnlyList<ChartAlert>? OverviewAlerts { get => _overviewAlerts; private set => Set(ref _overviewAlerts, value); }
 
     /// <summary>Попередня / наступна позначка (по колу); поза діапазоном — діапазон скидається.</summary>
     private void GoToMark(int dir)
@@ -839,6 +879,31 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ("trip_time", "Trip engine time", ""),
     ];
 
+    /// <summary>Попередження на індикаторах бітів для поточного кадру.</summary>
+    private void ShowFlagWarnings(ObdFrame f)
+    {
+        foreach (var row in Flags)
+        {
+            switch (row.Key)
+            {
+                case "f12.4":
+                    // Лямбда в зворотному зв'язку не перемикається: від 20 с (з налаштуванням — від 10 с) — помаранчевий
+                    double stuck = Diagnostics.O2StuckFor(_rec.Frames, _currentIndex);
+                    row.Warning = stuck > 0 && stuck >= Diagnostics.O2Threshold(Settings) ? FlagWarning.Warn : FlagWarning.None;
+                    row.WarningText = row.Warning == FlagWarning.None ? null
+                        : $"O2 has been {(Diagnostics.O2Rich(f) ? "RICH" : "LEAN")} for {stuck:0} s in closed loop — it should switch several times a second";
+                    break;
+                case "f12.1":
+                    // Концевик розімкнений при дроселі 0 довше за 5 с (з налаштуванням — 2 с)
+                    double? idl = Diagnostics.IdlMismatchFor(_rec.Frames, _currentIndex);
+                    row.Warning = idl > Diagnostics.IdlThreshold(Settings) ? FlagWarning.Warn : FlagWarning.None;
+                    row.WarningText = row.Warning == FlagWarning.None ? null
+                        : $"Idle switch is open while the throttle reads exactly 0 % for {idl:0} s — check the idle switch / throttle sensor adjustment";
+                    break;
+            }
+        }
+    }
+
     private void ShowTrip()
     {
         var t = _trip.At(_currentIndex - RangeLo);
@@ -877,7 +942,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             EngineOff = false;
             IdInfo = HexInfo = "—";
             ByteCount = 0;
-            foreach (var p in Parameters) { p.Text = "—"; p.Raw = ""; p.IsOn = false; p.Fraction = 0; p.Accent = AccentBrush; }
+            foreach (var p in Parameters) { p.Text = "—"; p.Raw = ""; p.IsOn = false; p.Fraction = 0; p.Accent = AccentBrush; p.Warning = FlagWarning.None; }
             UpdateStatTexts();
             UpdateChart();
             return;
@@ -907,6 +972,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             row.Fraction = TileFraction(f, row.Key, v);
             row.Accent = TileAccent(row.Key, v, values);
         }
+        ShowFlagWarnings(f);
         ShowTrip();
         FrameNumber = $"{_currentIndex + 1} / {_rec.Frames.Count}";
         FrameTime = f.Time.ToString("dd.MM.yyyy  HH:mm:ss.fff");
@@ -1199,6 +1265,23 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         CurrentIndex = Range.Contains(cur) ? cur : RangeLo;
         CommandManager.InvalidateRequerySuggested(); // Full / Prev / Next — одразу, без очікування введення
         Status = IsRangeFull ? "Showing the whole recording" : $"Range: frames {RangeLo + 1}–{RangeHi + 1}";
+    }
+
+    /// <summary>Звіт по діапазону перегляду (або всьому запису) з порівнянням з еталоном.</summary>
+    private void OpenReport()
+    {
+        var w = new ReportWindow(_rec, Range, Settings, JumpTo) { Owner = Application.Current.MainWindow };
+        w.Show();
+    }
+
+    /// <summary>Перейти до кадру зі звіту: поза діапазоном — діапазон скидається, щоб кадр було видно.</summary>
+    private void JumpTo(int index)
+    {
+        int n = _rec.Frames.Count;
+        if (index < 0 || index >= n) return;
+        if (!Range.Contains(index)) SetRange(FrameRange.All(n));
+        Follow = false;
+        CurrentIndex = index;
     }
 
     private void OpenCompare()

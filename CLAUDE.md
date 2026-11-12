@@ -19,9 +19,12 @@ src/JzMonitor/                 WPF app (.NET 10, net10.0-windows), no NuGet pack
     FrameAssembler.cs          level runs → bits → frames; frame end = idle gap, any length
     ParameterDecoder.cs        byte → physical value; formulas from CarTester's MemoDraw
     DecoderSettings.cs         sensor modes (CarTester.ini [Param]) + connection/protocol options
+    Diagnostics.cs             per-frame checks: O2 stuck in closed loop, IDL open with throttle 0
   Recording/RecordingIO.cs     CSV export, raw edge log, vehicle info
   Recording/CtrFormat.cs       .ctr — the only recording format (open/save), CarTester 1.0.0.3
   Recording/FrameRange.cs      view range + parser (frame numbers / time of day), Timeline (align by seconds)
+  Recording/RecordingReport.cs report metrics (warm idle, warm-up, checks, trip, link) with reference tolerances
+  ReportWindow + ViewModels/ReportViewModel.cs     report vs a reference recording (Settings.ReferenceFile)
   CompareWindow + ViewModels/CompareViewModel.cs   two recordings side by side (A solid, B dashed)
   ViewModels/, Controls/       MVVM (hand-written ObservableObject/RelayCommand), chart control
   Themes/Light.xaml            the only theme: palette, control styles (all colors live here)

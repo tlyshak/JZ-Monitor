@@ -19,6 +19,9 @@ public sealed class ChartSeries
     public bool Dashed { get; init; }
 }
 
+/// <summary>Знак «!» над графіком: відрізок точок (включно), де спрацювала перевірка.</summary>
+public sealed record ChartAlert(int Start, int End, bool Alarm, string Text);
+
 /// <summary>
 /// Простий багатосерійний графік: кожна серія масштабується у власному діапазоні.
 /// Миша: клік/перетягування — курсор; Shift + перетягування — виділення діапазону; коліщатко й клавіші — крок.
@@ -50,12 +53,16 @@ public sealed class ChartControl : FrameworkElement
         nameof(Marks), typeof(IReadOnlyList<int>), typeof(ChartControl),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty AlertsProperty = DependencyProperty.Register(
+        nameof(Alerts), typeof(IReadOnlyList<ChartAlert>), typeof(ChartControl),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty ShowLegendProperty = DependencyProperty.Register(
         nameof(ShowLegend), typeof(bool), typeof(ChartControl),
         new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty DragSelectsProperty = DependencyProperty.Register(
-        nameof(DragSelects), typeof(bool), typeof(ChartControl), new PropertyMetadata(false, (d, _) => ((ChartControl)d).UpdateHint()));
+        nameof(DragSelects), typeof(bool), typeof(ChartControl), new PropertyMetadata(false));
 
     public IReadOnlyList<ChartSeries>? Series
     {
@@ -96,6 +103,13 @@ public sealed class ChartControl : FrameworkElement
         set => SetValue(MarksProperty, value);
     }
 
+    /// <summary>Спрацювання перевірок: знак «!» і лінія на першому кадрі відрізка, сам відрізок — ледь помітним тлом.</summary>
+    public IReadOnlyList<ChartAlert>? Alerts
+    {
+        get => (IReadOnlyList<ChartAlert>?)GetValue(AlertsProperty);
+        set => SetValue(AlertsProperty, value);
+    }
+
     /// <summary>Легенда над графіком (назви й значення під курсором).</summary>
     public bool ShowLegend
     {
@@ -118,19 +132,66 @@ public sealed class ChartControl : FrameworkElement
     public event Action<int, int>? RangeSelected;
 
     private int _selA = -1, _selB = -1;
+    /// <summary>Верх області графіка з останнього малювання — для підказки над знаками «!».</summary>
+    private double _plotTop;
     private bool _selecting;
 
     public ChartControl()
     {
         Focusable = true;
         FocusVisualStyle = null;
-        Cursor = Cursors.SizeWE;
-        UpdateHint();
+        Cursor = Cursors.Arrow;
+        _alertTip.PlacementTarget = this;
     }
 
-    private void UpdateHint() => ToolTip = DragSelects
-        ? "Drag to select a range · click to move the cursor"
-        : "Drag to move the cursor · Shift+drag to select a range · wheel / arrow keys to step";
+    /// <summary>
+    /// Власна підказка для спрацювань перевірок: відкривається одразу й іде за мишею. Стандартна підказка WPF
+    /// показується раз на вхід миші в елемент і після закриття не з'являється, доки миша не вийде — над знаками
+    /// «!» вона часто не відкривалася.
+    /// </summary>
+    private readonly System.Windows.Controls.ToolTip _alertTip = new() { Placement = System.Windows.Controls.Primitives.PlacementMode.Relative };
+
+    /// <summary>Над знаком «!», його лінією або тлом відрізка — підказка, що спрацювало; деінде — закрита.</summary>
+    private void UpdateAlertTip(Point p)
+    {
+        var hit = AlertsAt(p);
+        if (hit.Count == 0) { CloseAlertTip(); return; }
+        _alertTip.Content = string.Join(Environment.NewLine, hit);
+        _alertTip.HorizontalOffset = p.X + 14;
+        _alertTip.VerticalOffset = p.Y + 18;
+        _alertTip.IsOpen = true;
+    }
+
+    private void CloseAlertTip()
+    {
+        _alertTip.IsOpen = false;
+    }
+
+    /// <summary>
+    /// Спрацювання під мишею: знак «!» (±8 px від першого кадру, на будь-якій висоті — там і лінія) або тло
+    /// відрізка. Спершу знаки, бо вони точніші.
+    /// </summary>
+    private List<string> AlertsAt(Point p)
+    {
+        int n = PointCount;
+        double w = ActualWidth;
+        if (Alerts is not { Count: > 0 } alerts || n < 2 || w < 2 || p.Y < _plotTop) return [];
+        double X(int i) => i * (w - 1) / (n - 1);
+        var hits = alerts.Where(a => Math.Abs(X(a.Start) - p.X) <= 8).ToList();
+        if (hits.Count == 0)
+        {
+            int idx = IndexAt(p.X);
+            hits = alerts.Where(a => a.End > a.Start && idx >= a.Start && idx <= a.End).ToList();
+        }
+        return hits.Select(a => a.Text).Distinct().ToList();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        CloseAlertTip();
+    }
+
 
     private static readonly Typeface Face = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
     private static readonly Typeface AxisFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
@@ -144,6 +205,13 @@ public sealed class ChartControl : FrameworkElement
     private static readonly Pen RangeEdge = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0xF2, 0x6B, 0x1D)), 1.5));
     private static readonly Brush MarkFill = Frozen(new SolidColorBrush(Color.FromRgb(0xC9, 0x8A, 0x00)));
     private static readonly Pen MarkPen = Frozen(new Pen(new SolidColorBrush(Color.FromArgb(0x80, 0xC9, 0x8A, 0x00)), 1));
+    private static readonly Brush AlertWarn = Frozen(new SolidColorBrush(Color.FromRgb(0xF0, 0x7E, 0x1F)));
+    private static readonly Brush AlertAlarm = Frozen(new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D)));
+    private static readonly Pen AlertWarnLine = Frozen(new Pen(new SolidColorBrush(Color.FromArgb(0x90, 0xF0, 0x7E, 0x1F)), 1));
+    private static readonly Pen AlertAlarmLine = Frozen(new Pen(new SolidColorBrush(Color.FromArgb(0x90, 0xE5, 0x48, 0x4D)), 1));
+    private static readonly Brush AlertWarnFill = Frozen(new SolidColorBrush(Color.FromArgb(0x14, 0xF0, 0x7E, 0x1F)));
+    private static readonly Brush AlertAlarmFill = Frozen(new SolidColorBrush(Color.FromArgb(0x14, 0xE5, 0x48, 0x4D)));
+    private static readonly Typeface AlertFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
     private static readonly DashStyle SeriesDash = Frozen(new DashStyle([4, 3], 0));
 
     private int PointCount => Series?.Count > 0 ? Series.Max(s => s.Values.Length) : 0;
@@ -198,6 +266,7 @@ public sealed class ChartControl : FrameworkElement
         var xLabel = XLabel;
         double axisH = xLabel != null && n >= 2 ? 18 : 0;
         double plotTop = legendH, plotBottom = h - axisH, plotH = plotBottom - plotTop;
+        _plotTop = plotTop;
         dc.DrawRoundedRectangle(Back, null, new Rect(0, plotTop, w, Math.Max(0, plotH)), 6, 6);
         for (int i = 1; i < 4; i++)
         {
@@ -222,6 +291,17 @@ public sealed class ChartControl : FrameworkElement
             dc.DrawRectangle(SelectionFill, null, new Rect(x1, plotTop, Math.Max(1, x2 - x1), plotH));
             dc.DrawLine(SelectionEdge, new Point(x1, plotTop), new Point(x1, plotBottom));
             dc.DrawLine(SelectionEdge, new Point(x2, plotTop), new Point(x2, plotBottom));
+        }
+
+        // Відрізки спрацювань перевірок — ледь помітне тло під лініями (знак «!» малюється пізніше, зверху)
+        if (Alerts is { Count: > 0 } shaded)
+        {
+            foreach (var a in shaded)
+            {
+                if (a.End < 0 || a.Start >= n || a.End <= a.Start) continue;
+                double x1 = X(Math.Max(a.Start, 0)), x2 = X(Math.Min(a.End, n - 1));
+                dc.DrawRectangle(a.Alarm ? AlertAlarmFill : AlertWarnFill, null, new Rect(x1, plotTop, x2 - x1, plotH));
+            }
         }
 
         // Підписи осі X: ~6 рівномірних позначок
@@ -294,6 +374,26 @@ public sealed class ChartControl : FrameworkElement
             }
         }
 
+        // Спрацювання перевірок — як мітки зірочки: на першому кадрі відрізка тонка лінія і «!» у кружечку вгорі
+        if (Alerts is { Count: > 0 } alerts)
+        {
+            double lastBadge = double.NegativeInfinity;
+            foreach (var a in alerts.OrderBy(a => a.Start).ThenByDescending(a => a.Alarm))
+            {
+                if (a.Start < 0 || a.Start >= n) continue;
+                var brush = a.Alarm ? AlertAlarm : AlertWarn;
+                double x = Math.Round(X(a.Start)) + 0.5;
+                dc.DrawLine(a.Alarm ? AlertAlarmLine : AlertWarnLine, new Point(x, plotTop + 13), new Point(x, plotBottom));
+                // Знаки, що злипаються, не малюємо один на одному — досить лінії
+                if (x - lastBadge < 12) continue;
+                lastBadge = x;
+                var center = new Point(Math.Max(x, 6), plotTop + 7);
+                dc.DrawEllipse(brush, null, center, 6, 6);
+                var mark = Text("!", Brushes.White, 10, AlertFace);
+                dc.DrawText(mark, new Point(center.X - mark.Width / 2, center.Y - mark.Height / 2));
+            }
+        }
+
         if (CursorIndex >= 0 && CursorIndex < n)
         {
             var x = Math.Round(X(CursorIndex)) + 0.5;
@@ -320,7 +420,8 @@ public sealed class ChartControl : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (!IsMouseCaptured) return;
+        if (!IsMouseCaptured) { UpdateAlertTip(e.GetPosition(this)); return; }
+        CloseAlertTip(); // під час перетягування підказка лише заважає
         int idx = IndexAt(e.GetPosition(this).X);
         if (idx < 0) return;
         if (_selecting) { _selB = idx; InvalidateVisual(); }

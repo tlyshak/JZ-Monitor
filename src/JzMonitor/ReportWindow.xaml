@@ -1,0 +1,131 @@
+<Window x:Class="JzMonitor.ReportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Recording report" Height="860" Width="820" MinWidth="680" MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+
+    <Window.Resources>
+        <!-- Рядок звіту: назва, цей запис, еталон, різниця, одиниця; заголовок групи — окремо -->
+        <DataTemplate x:Key="RowTemplate">
+            <Border x:Name="Row" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" MinHeight="27" Padding="4,0">
+                <StackPanel VerticalAlignment="Center">
+                <Grid MinHeight="26">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="80"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="Name" Text="{Binding Name}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="This" Grid.Column="1" Text="{Binding This}" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{Binding Reference}" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="Delta" Grid.Column="3" Text="{Binding Delta}" Foreground="{StaticResource TextDim}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="4" Text="{Binding Unit}" Foreground="{StaticResource TextDim}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </Grid>
+                <!-- Де саме: відрізки кадрів, клік — перейти в головному вікні -->
+                <WrapPanel Margin="12,0,0,6" Visibility="{Binding HasLinks, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="frames" Style="{StaticResource Caption}" FontWeight="Normal" FontSize="11" Margin="0,0,6,0"/>
+                    <ItemsControl ItemsSource="{Binding Links}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding Command}" Style="{StaticResource GhostButton}" Padding="4,0" Margin="0,0,2,0"
+                                        Cursor="Hand" ToolTip="Show this place in the main window">
+                                    <TextBlock Text="{Binding Label}" Foreground="{StaticResource Accent}" FontSize="11" TextDecorations="Underline"/>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding More}" Style="{StaticResource Caption}" FontWeight="Normal" FontSize="11" Margin="4,0,0,0"/>
+                </WrapPanel>
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsHeader}" Value="True">
+                    <Setter TargetName="Row" Property="BorderThickness" Value="0"/>
+                    <Setter TargetName="Row" Property="MinHeight" Value="34"/>
+                    <Setter TargetName="Name" Property="Style" Value="{StaticResource SectionTitle}"/>
+                    <Setter TargetName="Name" Property="VerticalAlignment" Value="Bottom"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Attention}" Value="True">
+                    <Setter TargetName="This" Property="Foreground" Value="{StaticResource Caution}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Deviates}" Value="True">
+                    <Setter TargetName="Delta" Property="Foreground" Value="{StaticResource Caution}"/>
+                    <Setter TargetName="Delta" Property="FontWeight" Value="SemiBold"/>
+                    <Setter TargetName="Row" Property="ToolTip" Value="Differs from the reference more than usual"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Цей запис і еталон -->
+        <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="THIS" Style="{StaticResource Caption}" Margin="0,0,14,0"/>
+                <DockPanel Grid.Column="1">
+                    <Button DockPanel.Dock="Right" Command="{Binding CopyCommand}" Style="{StaticResource GhostButton}" ToolTip="Copy the report as text"
+                            AutomationProperties.Name="Copy report">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8C8;" Style="{StaticResource Icon}"/>
+                            <TextBlock Text="Copy" Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="{Binding ThisInfo}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </DockPanel>
+                <TextBlock Grid.Row="1" Text="REFERENCE" Style="{StaticResource Caption}" Margin="0,10,14,0"/>
+                <DockPanel Grid.Row="1" Grid.Column="1" Margin="0,10,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Content="Use this recording" Command="{Binding UseCurrentCommand}" Margin="0,0,6,0" Padding="10,4"
+                                ToolTip="Make the open recording the reference (a drive when the car was fine)"/>
+                        <Button Content="Choose…" Command="{Binding ChooseCommand}" Margin="0,0,6,0" Padding="10,4"/>
+                        <Button Content="Clear" Command="{Binding ClearCommand}" Margin="0" Padding="10,4"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ReferenceInfo}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </DockPanel>
+            </Grid>
+        </Border>
+
+        <!-- Таблиця -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="14,6,14,10">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" Margin="4,4,4,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="80"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="1" Text="THIS" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
+                    <TextBlock Grid.Column="2" Text="REFERENCE" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
+                    <TextBlock Grid.Column="3" Text="DIFFERENCE" Style="{StaticResource Caption}" FontSize="10" HorizontalAlignment="Right"/>
+                </Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource RowTemplate}"/>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

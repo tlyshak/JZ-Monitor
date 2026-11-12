@@ -12,6 +12,7 @@
     <Color x:Key="AccentColor">#F26B1D</Color>
     <Color x:Key="OkColor">#18A866</Color>
     <Color x:Key="WarnColor">#C98A00</Color>
+    <Color x:Key="CautionColor">#F07E1F</Color>
     <Color x:Key="DangerColor">#E5484D</Color>
     <Color x:Key="InfoColor">#1E88E5</Color>
 
@@ -25,6 +26,7 @@
     <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}"/>
     <SolidColorBrush x:Key="Ok" Color="{StaticResource OkColor}"/>
     <SolidColorBrush x:Key="Warn" Color="{StaticResource WarnColor}"/>
+    <SolidColorBrush x:Key="Caution" Color="{StaticResource CautionColor}"/>
     <SolidColorBrush x:Key="Danger" Color="{StaticResource DangerColor}"/>
     <SolidColorBrush x:Key="Info" Color="{StaticResource InfoColor}"/>
 

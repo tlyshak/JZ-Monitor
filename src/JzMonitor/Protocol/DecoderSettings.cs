@@ -46,6 +46,14 @@ public sealed class DecoderSettings
     /// </summary>
     public double MapKpaPerCount { get; set; } = 0.97;
 
+    /// <summary>Показувати застряглу лямбду вже від 10 с (за замовчуванням — від 20 с).</summary>
+    public bool ShowShortO2Stuck { get; set; }
+    /// <summary>Показувати «концевик ХХ розімкнений при дроселі 0» вже понад 2 с (за замовчуванням — понад 5 с).</summary>
+    public bool ShowShortIdlMismatch { get; set; }
+
+    /// <summary>Еталонний запис (.ctr) для порівняння у звіті; null — не вибрано.</summary>
+    public string? ReferenceFile { get; set; }
+
     // Параметри лінії / протоколу
     public string? Port { get; set; }
     public bool Invert { get; set; }
