@@ -332,12 +332,13 @@
     <Style TargetType="TabItem">
         <Setter Property="Foreground" Value="{DynamicResource TextDim}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="12"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Border x:Name="Bd" Padding="14,8" Margin="0,0,2,-1" BorderThickness="0,0,0,2" BorderBrush="Transparent" Background="Transparent">
+                    <Border x:Name="Bd" Padding="12,5" Margin="0,0,2,-1" BorderThickness="0,0,0,2" BorderBrush="Transparent" Background="Transparent">
                         <ContentPresenter ContentSource="Header"/>
                     </Border>
                     <ControlTemplate.Triggers>

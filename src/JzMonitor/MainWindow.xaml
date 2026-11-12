@@ -111,7 +111,7 @@
 
         <!-- Рядок таблиці параметрів (дві колонки) -->
         <DataTemplate x:Key="ParamTemplate">
-            <Border x:Name="Row" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Padding="4,0" Height="27" Margin="0,0,16,0"
+            <Border x:Name="Row" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Padding="4,0" Height="25" Margin="0,0,16,0"
                     Background="Transparent">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -418,8 +418,8 @@
                     </DockPanel>
                 </Border>
 
-                <Border Grid.Column="2" Style="{StaticResource Card}" Padding="14,4,14,10">
-                    <TabControl Padding="0,8,0,0">
+                <Border Grid.Column="2" Style="{StaticResource Card}" Padding="14,2,14,10">
+                    <TabControl Padding="0,6,0,0">
                         <TabItem Header="Parameters">
                             <DockPanel>
                             <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,-16,2">
@@ -504,91 +504,115 @@
                         </TabItem>
 
                         <TabItem Header="Setup">
+                            <!-- Налаштування згруповані сіткою; пояснення — у підказках (ToolTip), щоб не займати місце -->
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <Grid Margin="0,0,6,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="28"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-
-                                    <StackPanel>
-                                        <TextBlock Text="INJECTORS  (fuel flow estimate)" Style="{StaticResource SectionTitle}"/>
-                                        <UniformGrid Columns="3" Margin="0,0,0,4">
-                                            <StackPanel Margin="0,0,8,0" ToolTip="Flow of one injector. JDM 2JZ-GTE non-VVTi stock: 440 cc/min (US: 550)">
-                                                <TextBlock Text="Flow, cc/min" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                                <TextBox Text="{Binding InjectorFlowCcMin}"/>
-                                            </StackPanel>
-                                            <StackPanel Margin="0,0,8,0" ToolTip="Number of injectors">
-                                                <TextBlock Text="Injectors" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                                <TextBox Text="{Binding InjectorCount}"/>
-                                            </StackPanel>
-                                            <StackPanel ToolTip="How many times each injector fires per 2 crank revolutions: 1 = sequential (2JZ-GTE), 2 = group / simultaneous">
-                                                <TextBlock Text="Shots / 2 rev" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                                <TextBox Text="{Binding InjectionRate}"/>
-                                            </StackPanel>
-                                        </UniformGrid>
-                                        <TextBlock Text="Approximate: injector dead time is not taken into account." Style="{StaticResource Caption}"
-                                                   FontWeight="Normal" FontSize="11" Margin="0,0,0,14"/>
-
-                                        <TextBlock Text="SPEED" Style="{StaticResource SectionTitle}"/>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14"
-                                                    ToolTip="Vehicle speed = raw byte ÷ this value. CarTester shows the raw byte (÷1); 3.4 matches the real speed on the reference Chaser">
-                                            <TextBlock Text="Speed ÷" Style="{StaticResource FieldLabel}"/>
-                                            <TextBox Text="{Binding SpeedDivisor}" Width="70"/>
-                                            <TextBlock Text="raw byte ÷ value = km/h" Style="{StaticResource Caption}" FontWeight="Normal" FontSize="11" Margin="10,0,0,0"/>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <!-- FUEL -->
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,24,12">
+                                    <TextBlock Text="FUEL" Style="{StaticResource SectionTitle}"/>
+                                    <UniformGrid Columns="3">
+                                        <StackPanel Margin="0,0,8,0" ToolTip="Flow of one injector. JDM 2JZ-GTE non-VVTi stock: 440 cc/min (US: 550). Fuel flow is an estimate: injector dead time is not taken into account">
+                                            <TextBlock Text="Flow, cc/min" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding InjectorFlowCcMin}"/>
                                         </StackPanel>
-
-                                        <TextBlock Text="MAP" Style="{StaticResource SectionTitle}"/>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14"
-                                                    ToolTip="MAP scale: kPa per raw count (CarTester: 0.97). Shown relative to standard atmosphere 101.3 kPa — change only after checking with a gauge">
-                                            <TextBlock Text="kPa per count" Style="{StaticResource FieldLabel}"/>
-                                            <TextBox Text="{Binding MapKpaPerCount}" Width="70"/>
+                                        <StackPanel Margin="0,0,8,0" ToolTip="Number of injectors">
+                                            <TextBlock Text="Injectors" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding InjectorCount}"/>
                                         </StackPanel>
-
+                                        <StackPanel Margin="0" ToolTip="How many times each injector fires per 2 crank revolutions: 1 = sequential (2JZ-GTE), 2 = group">
+                                            <TextBlock Text="Shots / 2 rev" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding InjectionRate}"/>
+                                        </StackPanel>
+                                    </UniformGrid>
                                     </StackPanel>
+                                    <!-- SCALES -->
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,24,12">
+                                    <TextBlock Text="SCALES" Style="{StaticResource SectionTitle}"/>
+                                    <UniformGrid Columns="2">
+                                        <StackPanel Margin="0,0,8,0" ToolTip="km/h = raw byte ÷ this value. CarTester shows the raw byte (÷1); 3.4 matches the real speed on the reference Chaser">
+                                            <TextBlock Text="Speed ÷" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding SpeedDivisor}"/>
+                                        </StackPanel>
+                                        <StackPanel Margin="0" ToolTip="MAP scale (CarTester: 0.97), shown relative to 101.3 kPa. Change only after checking with a gauge">
+                                            <TextBlock Text="MAP, kPa / count" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding MapKpaPerCount}"/>
+                                        </StackPanel>
+                                    </UniformGrid>
+                                    </StackPanel>
+                                    <!-- CHECKS -->
+                                    <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,12">
+                                    <TextBlock Text="CHECKS" Style="{StaticResource SectionTitle}"/>
+                                    <CheckBox Content="O2 stuck from 10 s" IsChecked="{Binding ShowShortO2Stuck}" Margin="0,2,0,6"
+                                              ToolTip="Warn when O2 does not switch for 10 s in closed loop (off: 20 s). Short stalls happen on a healthy engine during transients"/>
+                                    <CheckBox Content="Idle switch at 0 % from 2 s" IsChecked="{Binding ShowShortIdlMismatch}"
+                                              ToolTip="Warn when the idle switch is open with the throttle at exactly 0 % for over 2 s (off: 5 s)"/>
+                                    </StackPanel>
+                                    <!-- PROTOCOL -->
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,24,0">
+                                    <TextBlock Text="PROTOCOL" Style="{StaticResource SectionTitle}"/>
+                                    <UniformGrid Columns="3">
+                                        <StackPanel Margin="0,0,8,0" ToolTip="Bit time of the ECU data line (CarTester: 8.2 ms)">
+                                            <TextBlock Text="Bit, ms" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding BitTimeMs}"/>
+                                        </StackPanel>
+                                        <StackPanel Margin="0,0,8,0" ToolTip="Idle time that ends a frame, in bits">
+                                            <TextBlock Text="Gap, bits" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding GapBits}"/>
+                                        </StackPanel>
+                                        <StackPanel Margin="0" ToolTip="Shorter frames are rejected">
+                                            <TextBlock Text="Min bytes" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding MinDataBytes}"/>
+                                        </StackPanel>
+                                    </UniformGrid>
+                                    </StackPanel>
+                                    <!-- TOOLS -->
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0">
+                                    <TextBlock Text="TOOLS" Style="{StaticResource SectionTitle}"/>
+                                    <!-- Список рядків: перемикач або підпис ліворуч, легка кнопка-дія праворуч -->
+                                    <Grid MaxWidth="460" HorizontalAlignment="Left">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="28"/>
+                                            <RowDefinition Height="28"/>
+                                            <RowDefinition Height="28"/>
+                                        </Grid.RowDefinitions>
+                                        <CheckBox Content="Show hidden data" IsChecked="{Binding ShowHidden}" VerticalAlignment="Center"
+                                                  ToolTip="Show bits and bytes the original CarTester hid"/>
 
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="PROTOCOL" Style="{StaticResource SectionTitle}"/>
-                                        <UniformGrid Columns="3" Margin="0,0,0,14">
-                                            <StackPanel Margin="0,0,8,0">
-                                                <TextBlock Text="Bit time, ms" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                                <TextBox Text="{Binding BitTimeMs}"/>
+                                        <CheckBox Grid.Row="1" Content="Log raw edges" IsChecked="{Binding RecordEdges}" VerticalAlignment="Center"
+                                                  ToolTip="While reading, save every signal level duration to a file — for protocol research"/>
+                                        <Button Grid.Row="1" Grid.Column="1" Style="{StaticResource GhostButton}" Padding="8,3" Margin="24,0,0,0" HorizontalAlignment="Left"
+                                                Command="{Binding ReplayEdgesCommand}" AutomationProperties.Name="Replay edge log"
+                                                ToolTip="Decode a saved raw edge log with the current protocol settings">
+                                            <StackPanel Orientation="Horizontal">
+                                                <c:VectorIcon Kind="Play" Size="11" Foreground="{DynamicResource Accent}"/>
+                                                <TextBlock Text="Replay…" Margin="6,0,0,0" Foreground="{DynamicResource Accent}"/>
                                             </StackPanel>
-                                            <StackPanel Margin="0,0,8,0">
-                                                <TextBlock Text="Gap, bits" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                                <TextBox Text="{Binding GapBits}"/>
-                                            </StackPanel>
-                                            <StackPanel>
-                                                <TextBlock Text="Min bytes" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
-                                                <TextBox Text="{Binding MinDataBytes}"/>
-                                            </StackPanel>
-                                        </UniformGrid>
+                                        </Button>
 
-                                        <TextBlock Text="CHECKS" Style="{StaticResource SectionTitle}"/>
-                                        <CheckBox Content="O2 stuck: warn from 10 s (default 20 s)" IsChecked="{Binding ShowShortO2Stuck}" Margin="0,0,0,4"
-                                                  ToolTip="Short O2 stalls (10–20 s) happen on a healthy engine during transients; off = only 20 s and longer"/>
-                                        <CheckBox Content="Idle switch open at 0 % throttle: warn from 2 s (default 5 s)" IsChecked="{Binding ShowShortIdlMismatch}" Margin="0,0,0,14"
-                                                  ToolTip="Off = only mismatches longer than 5 s"/>
-
-                                        <TextBlock Text="TOOLS" Style="{StaticResource SectionTitle}"/>
-                                        <CheckBox Content="Show data hidden by CarTester" IsChecked="{Binding ShowHidden}" Margin="0,0,0,4"/>
-                                        <CheckBox Content="Log raw edges to file" IsChecked="{Binding RecordEdges}" Margin="0,0,0,8"
-                                                  ToolTip="Saves every signal level duration while reading, for protocol research"/>
-                                        <WrapPanel>
-                                            <Button AutomationProperties.Name="Import CarTester.ini" Command="{Binding ImportIniCommand}" Margin="0,0,8,8">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <c:VectorIcon Kind="Import"/>
-                                                    <TextBlock Text="Import CarTester.ini" Margin="8,0,0,0"/>
-                                                </StackPanel>
-                                            </Button>
-                                            <Button AutomationProperties.Name="Replay edge log" Command="{Binding ReplayEdgesCommand}" Margin="0,0,8,8">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <c:VectorIcon Kind="Play"/>
-                                                    <TextBlock Text="Replay edge log" Margin="8,0,0,0"/>
-                                                </StackPanel>
-                                            </Button>
-                                        </WrapPanel>
+                                        <TextBlock Grid.Row="2" Text="CarTester settings" VerticalAlignment="Center" Margin="44,0,0,0"
+                                                   Foreground="{DynamicResource TextDim}"/>
+                                        <Button Grid.Row="2" Grid.Column="1" Style="{StaticResource GhostButton}" Padding="8,3" Margin="24,0,0,0" HorizontalAlignment="Left"
+                                                Command="{Binding ImportIniCommand}" AutomationProperties.Name="Import CarTester.ini"
+                                                ToolTip="Import sensor settings from CarTester.ini">
+                                            <StackPanel Orientation="Horizontal">
+                                                <c:VectorIcon Kind="Import" Size="11" Foreground="{DynamicResource Accent}"/>
+                                                <TextBlock Text="Import .ini…" Margin="6,0,0,0" Foreground="{DynamicResource Accent}"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
                                     </StackPanel>
                                 </Grid>
                             </ScrollViewer>
