@@ -62,7 +62,7 @@ Live data testing for pre-OBD2 JZ GTE engines.
 
 ## Вимоги
 
-- Windows 10/11
+- Windows 10/11 (на Windows 7 SP1 з .NET 10 Desktop Runtime теж запускається, хоча офіційно .NET 10 її не підтримує)
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) (для збирання) або .NET 10 Desktop Runtime (для запуску)
 - COM-порт (вбудований або USB-адаптер з лініями стану модему) і кабель до діагностичного роз'єму
 
@@ -73,6 +73,18 @@ dotnet build JzMonitor.slnx
 dotnet run --project src/JzMonitor
 dotnet test JzMonitor.slnx
 ```
+
+## Інсталятор
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\build.ps1
+```
+
+Результат — `out\JzMonitor-<версія>-win-x64.msi` (~230 КБ). Ставить програму для поточного користувача в
+`%LOCALAPPDATA%\Programs\JZ Monitor` (без прав адміністратора), ярлики в меню Пуск і на робочому столі;
+видаляється через «Програми та засоби». .NET не входить — потрібен .NET 10 Desktop Runtime. Нова версія
+(більший `<Version>` у `src/JzMonitor/JzMonitor.csproj`) встановлюється поверх старої. WiX 5 — локальний
+dotnet-інструмент (`dotnet-tools.json`), підтягується сам.
 
 ## Використання
 

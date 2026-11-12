@@ -36,6 +36,8 @@ docs/PROTOCOL.md               protocol, .ctr spec, verified points, what the or
 docs/history/                  what was done and why (owner's decisions, open questions) — read first
 docs/plans/<slug>/             plans written by /architect
 tools/re/                      UPX unpacker, DFM parser, dumpbin annotation (see its README)
+installer/                     WiX 5 .msi (per-user, framework-dependent): build.ps1 → out\JzMonitor-<ver>-win-x64.msi
+dotnet-tools.json              local tool: wix 5.0.2 (build-time only; keep v5 — v6+ needs an extra EULA)
 ```
 
 ## Hard rules
