@@ -843,9 +843,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RecomputeStats();
         MarkDirty();
         RaiseRange();
-        _currentIndex = Math.Min(_currentIndex, _rec.Frames.Count - 1);
-        OnPropertyChanged(nameof(CurrentIndex));
-        ShowFrame();
+        // Курсор — на наступний кадр, але в межах діапазону (видалили останній кадр діапазону — на новий останній)
+        _currentIndex = -2; // змусити оновлення навіть якщо індекс не змінився
+        CurrentIndex = removed;
     }
 
     #endregion
