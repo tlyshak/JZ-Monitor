@@ -31,6 +31,7 @@ src/JzMonitor/                 WPF app (.NET 10, net10.0-windows), no NuGet pack
   Assets/JzMonitor.ico         app + window icon (orange "JZ" tile, 16–256 px)
 tests/JzMonitor.Tests/         xUnit (synthetic signals, a synthetic CarTester-style .ctr)
 docs/PROTOCOL.md               protocol, .ctr spec, verified points, what the original hid
+docs/history/                  what was done and why (owner's decisions, open questions) — read first
 docs/plans/<slug>/             plans written by /architect
 tools/re/                      UPX unpacker, DFM parser, dumpbin annotation (see its README)
 ```
